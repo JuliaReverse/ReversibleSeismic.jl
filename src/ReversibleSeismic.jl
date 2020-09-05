@@ -1,5 +1,5 @@
 module ReversibleSeismic
 
-# Write your package code here.
+include("simulation.jl")
 
 end

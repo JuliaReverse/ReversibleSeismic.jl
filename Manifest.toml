@@ -1,2 +1,116 @@
 # This file is machine-generated - editing it directly is not advised
 
+[[Base64]]
+uuid = "2a0f44e3-6c83-55bd-87e4-b1978d98bd5f"
+
+[[Dates]]
+deps = ["Printf"]
+uuid = "ade2ca70-3891-5945-98fb-dc099432e06a"
+
+[[FixedPointNumbers]]
+deps = ["Statistics"]
+git-tree-sha1 = "335bfdceacc84c5cdf16aadc768aa5ddfc5383cc"
+uuid = "53c48c17-4a7d-5ca2-90c5-79b7896eea93"
+version = "0.8.4"
+
+[[InteractiveUtils]]
+deps = ["Markdown"]
+uuid = "b77e0a4c-d291-57a0-90e8-8db25a27a240"
+
+[[LibGit2]]
+deps = ["Printf"]
+uuid = "76f85450-5226-5b5a-8eaa-529ad045b433"
+
+[[Libdl]]
+uuid = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
+
+[[LinearAlgebra]]
+deps = ["Libdl"]
+uuid = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+
+[[LogarithmicNumbers]]
+deps = ["Random", "Requires"]
+git-tree-sha1 = "fa14eb7801e95b3c996612d9d62899ebe5c8f877"
+uuid = "aa2f6b4e-9042-5d33-9679-40d3a6b85899"
+version = "0.4.0"
+
+[[Logging]]
+uuid = "56ddb016-857b-54e1-b83d-db4d58db5568"
+
+[[Markdown]]
+deps = ["Base64"]
+uuid = "d6f4376e-aef5-505a-96c1-9c027394607a"
+
+[[MatchCore]]
+git-tree-sha1 = "c4b9f2f81cb7dbe22540df3a084de380f3cef6c4"
+uuid = "5dd3f0b1-72a9-48ad-ae6e-79f673da005f"
+version = "0.1.0"
+
+[[NiLang]]
+deps = ["FixedPointNumbers", "LinearAlgebra", "LogarithmicNumbers", "MatchCore", "NiLangCore", "Reexport", "SparseArrays", "TupleTools"]
+git-tree-sha1 = "f2d8dbed87f73ca1cf639c2384aee977ef233d7c"
+uuid = "ab4ef3a6-0b42-11ea-31f6-e34652774712"
+version = "0.7.3"
+
+[[NiLangCore]]
+deps = ["MatchCore", "TupleTools"]
+git-tree-sha1 = "682cf230b8649db68b25d65922859a3201c7b2af"
+uuid = "575d3204-02a4-11ea-3f62-238caa8bf11e"
+version = "0.7.6"
+
+[[Pkg]]
+deps = ["Dates", "LibGit2", "Libdl", "Logging", "Markdown", "Printf", "REPL", "Random", "SHA", "UUIDs"]
+uuid = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
+
+[[Printf]]
+deps = ["Unicode"]
+uuid = "de0858da-6303-5e67-8744-51eddeeeb8d7"
+
+[[REPL]]
+deps = ["InteractiveUtils", "Markdown", "Sockets"]
+uuid = "3fa0cd96-eef1-5676-8a61-b3b8758bbffb"
+
+[[Random]]
+deps = ["Serialization"]
+uuid = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+
+[[Reexport]]
+deps = ["Pkg"]
+git-tree-sha1 = "7b1d07f411bc8ddb7977ec7f377b97b158514fe0"
+uuid = "189a3867-3050-52da-a836-e630ba90ab69"
+version = "0.2.0"
+
+[[Requires]]
+deps = ["UUIDs"]
+git-tree-sha1 = "8c08d0c7812169e438a8478dae2a529377ad13f7"
+uuid = "ae029012-a4dd-5104-9daa-d747884805df"
+version = "1.0.2"
+
+[[SHA]]
+uuid = "ea8e919c-243c-51af-8825-aaa63cd721ce"
+
+[[Serialization]]
+uuid = "9e88b42a-f829-5b0c-bbe9-9e923198166b"
+
+[[Sockets]]
+uuid = "6462fe0b-24de-5631-8697-dd941f90decc"
+
+[[SparseArrays]]
+deps = ["LinearAlgebra", "Random"]
+uuid = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
+
+[[Statistics]]
+deps = ["LinearAlgebra", "SparseArrays"]
+uuid = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
+
+[[TupleTools]]
+git-tree-sha1 = "62a7a6cd5a608ff71cecfdb612e67a0897836069"
+uuid = "9d95972d-f1c8-5527-a6e0-b4b365fa01f6"
+version = "1.2.0"
+
+[[UUIDs]]
+deps = ["Random", "SHA"]
+uuid = "cf7118a7-6976-5b1a-9a39-7adc72f591a4"
+
+[[Unicode]]
+uuid = "4ec0a83e-493e-50e2-b9ac-8f72acf5a8f5"
