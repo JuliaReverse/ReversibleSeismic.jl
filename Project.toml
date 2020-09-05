@@ -6,7 +6,6 @@ version = "0.1.0"
 [deps]
 NiLang = "ab4ef3a6-0b42-11ea-31f6-e34652774712"
 Parameters = "d96e819e-fc66-5662-9728-84c9c7592b0a"
-PyPlot = "d330b81b-6aea-500a-939a-2ce795aea3ee"
 
 [compat]
 julia = "1"
