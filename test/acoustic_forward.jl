@@ -1,10 +1,8 @@
 using Revise
 using ReversibleSeismic
 
-param = AcousticPropagatorParams(NX = 100, NY = 100,
-     Rcoef=0.2, DELTAX=20, DELTAY=20, DELTAT=0.05, NSTEP=20,
-     USE_PML_XMIN = true, USE_PML_XMAX = true, 
-     USE_PML_YMIN = true, USE_PML_YMAX = true) 
+param = AcousticPropagatorParams(nx = 100, ny = 100,
+     Rcoef=0.2, dx=20, dy=20, dt=0.05, nstep=2000)
 
 c = 1000*ones(param.NX+2, param.NY+2)
 srci = param.NX÷2
