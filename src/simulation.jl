@@ -46,46 +46,49 @@ function scatter_nd_ops(IJ, u, n)
     out
 end
 
-function one_step(param::AcousticPropagatorParams, w, wold, φ, ψ, σ, τ, c)
+function one_step!(param::AcousticPropagatorParams, w, wold, φ, ψ, σ, τ, c)
     Δt = param.DELTAT
     hx, hy = param.DELTAX, param.DELTAY
     IJ, IpJ, InJ, IJp, IJn, IpJp, IpJn, InJp, InJn =
         param.IJ, param.IpJ, param.InJ, param.IJp, param.IJn, param.IpJp, param.IpJn, param.InJp, param.InJn
-        
-    u = @. (2 - σ[IJ]*τ[IJ]*Δt^2 - 2*Δt^2/hx^2 * c[IJ] - 2*Δt^2/hy^2 * c[IJ]) * w[IJ] +
-            c[IJ] * (Δt/hx)^2  *  (w[IpJ]+w[InJ]) +
-            c[IJ] * (Δt/hy)^2  *  (w[IJp]+w[IJn]) +
-            (Δt^2/(2hx))*(φ[IpJ]-φ[InJ]) +
-            (Δt^2/(2hy))*(ψ[IJp]-ψ[IJn]) -
-            (1 - (σ[IJ]+τ[IJ])*Δt/2) * wold[IJ] 
-    u = @. u / (1 + (σ[IJ]+τ[IJ])/2*Δt)
-    u = scatter_nd_ops(IJ, u, (param.NX+2)*(param.NY+2))
-    φ = @. (1. -Δt*σ[IJ]) * φ[IJ] + Δt * c[IJ] * (τ[IJ] -σ[IJ])/2hx *  
-        (u[IpJ]-u[InJ])
-    ψ = @. (1. -Δt*τ[IJ]) * ψ[IJ] + Δt * c[IJ] * (σ[IJ] -τ[IJ])/2hy * 
-        (u[IJp]-u[IJn])
-    φ = scatter_nd_ops(IJ, φ, (param.NX+2)*(param.NY+2))
-    ψ = scatter_nd_ops(IJ, ψ, (param.NX+2)*(param.NY+2))
-    u, φ, ψ
+
+    u = zeros(param.NX+2, param.NY+2)
+    c = reshape(c, param.NX+2, param.NY+2)
+ 
+    for j=2:param.NY+1, i=2:param.NX+1
+        uij = (2 - σ[i,j]*τ[i,j]*Δt^2 - 2*Δt^2/hx^2 * c[i,j] - 2*Δt^2/hy^2 * c[i,j]) * w[i,j] +
+            c[i,j] * (Δt/hx)^2  *  (w[i+1,j]+w[i-1,j]) +
+            c[i,j] * (Δt/hy)^2  *  (w[i,j+1]+w[i,j-1]) +
+            (Δt^2/(2hx))*(φ[i+1,j]-φ[i-1,j]) +
+            (Δt^2/(2hy))*(ψ[i,j+1]-ψ[i,j-1]) -
+            (1 - (σ[i,j]+τ[i,j])*Δt/2) * wold[i,j] 
+        u[i,j] = uij / (1 + (σ[i,j]+τ[i,j])/2*Δt)
+    end
+    for j=2:param.NY+1, i=2:param.NX+1
+        φ[i,j] = (1. -Δt*σ[i,j]) * φ[i,j] + Δt * c[i,j] * (τ[i,j] -σ[i,j])/2hx *  
+            (u[i+1,j]-u[i-1,j])
+        ψ[i,j] = (1-Δt*τ[i,j]) * ψ[i,j] + Δt * c[i,j] * (σ[i,j] -τ[i,j])/2hy * 
+            (u[i,j+1]-u[i,j-1])
+    end
+    u
 end
 
 function AcousticPropagatorSolver(param::AcousticPropagatorParams, srci::Int64, srcj::Int64, 
             srcv::Array{Float64, 1}, c::Array{Float64, 2})
 
-    c = c[:]
+    c = reshape(c, param.NX+2, param.NY+2)
     compute_PML_Params!(param)
 
-    σij = param.Σx[:]
-    τij = param.Σy[:]
+    σij = reshape(param.Σx[:], param.NX+2, param.NY+2)
+    τij = reshape(param.Σy[:], param.NX+2, param.NY+2)
 
-    tu = zeros((param.NX+2)*(param.NY+2), param.NSTEP+1)
-    tφ = zeros((param.NX+2)*(param.NY+2), param.NSTEP+1)
-    tψ = zeros((param.NX+2)*(param.NY+2), param.NSTEP+1)
+    tu = zeros(param.NX+2, param.NY+2, param.NSTEP+1)
+    tφ = zeros(param.NX+2, param.NY+2)
+    tψ = zeros(param.NX+2, param.NY+2)
 
     for i = 3:param.NSTEP+1
-        tu[:, i], tφ[:, i], tψ[:, i] = one_step(param, tu[:, i-1], tu[:, i-2], tφ[:, i-1], tψ[:, i-1], σij, τij, c)
-        src_index = (srci - 1) * (param.NY+2) + srcj
-        tu[src_index, i] += srcv[i-2]*param.DELTAT^2
+        tu[:,:,i] .= one_step!(param, tu[:,:,i-1], tu[:,:,i-2], tφ, tψ, σij, τij, c)
+        tu[srci, srcj, i] += srcv[i-2]*param.DELTAT^2
     end
 
     tu
