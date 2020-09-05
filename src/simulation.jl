@@ -85,7 +85,7 @@ function AcousticPropagatorSolver(param::AcousticPropagatorParams, srci::Int64, 
     for i = 3:param.NSTEP+1
         tu[:, i], tφ[:, i], tψ[:, i] = one_step(param, tu[:, i-1], tu[:, i-2], tφ[:, i-1], tψ[:, i-1], σij, τij, c)
         src_index = (srci - 1) * (param.NY+2) + srcj
-        tu[src_index, i] += srcv[i]*param.DELTAT^2
+        tu[src_index, i] += srcv[i-2]*param.DELTAT^2
     end
 
     tu
