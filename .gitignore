@@ -3,3 +3,4 @@
 *.jl.mem
 _*.png
 *.swp
+Manifest.toml
