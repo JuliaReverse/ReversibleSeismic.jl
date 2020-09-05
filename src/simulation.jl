@@ -26,32 +26,14 @@ export AcousticPropagatorParams, AcousticPropagatorSolver
     # Auxilliary Data
     Σx::Array{Float64} = []
     Σy::Array{Float64} = []
-    IJ::Array{Int64} = []
-    IJn::Array{Int64}  = []
-    IJp::Array{Int64} = []
-    IpJ::Array{Int64} = []
-    IpJp::Array{Int64} = []
-    IpJn::Array{Int64} = []
-    InJ::Array{Int64} = []
-    InJn::Array{Int64} = []
-    InJp::Array{Int64} = []
     
     # display params
     IT_DISPLAY::Int64 = 0
 end
 
-function scatter_nd_ops(IJ, u, n)
-    out = zeros(n)
-    out[IJ] = u 
-    out
-end
-
 function one_step!(param::AcousticPropagatorParams, w, wold, φ, ψ, σ, τ, c)
     Δt = param.DELTAT
     hx, hy = param.DELTAX, param.DELTAY
-    IJ, IpJ, InJ, IJp, IJn, IpJp, IpJn, InJp, InJn =
-        param.IJ, param.IpJ, param.InJ, param.IJp, param.IJn, param.IpJp, param.IpJn, param.InJp, param.InJn
-
     u = zeros(param.NX+2, param.NY+2)
     c = reshape(c, param.NX+2, param.NY+2)
  
@@ -128,15 +110,6 @@ function compute_PML_Params!(param::AcousticPropagatorParams)
 
     param.Σx = Σx
     param.Σy = Σy
-    param.IJ = getid2(2:NX+1, 2:NY+1, NX, NY)
-    param.IJn = getid2(2:NX+1, 1:NY, NX, NY)
-    param.IJp = getid2(2:NX+1, 3:NY+2, NX, NY)
-    param.IpJ = getid2(3:NX+2, 2:NY+1, NX, NY)
-    param.IpJp = getid2(3:NX+2, 3:NY+2, NX, NY)
-    param.IpJn = getid2(3:NX+2, 1:NY, NX, NY)
-    param.InJ = getid2(1:NX, 2:NY+1, NX, NY)
-    param.InJn = getid2(1:NX, 1:NY, NX, NY)
-    param.InJp = getid2(1:NX, 3:NY+2, NX, NY)
     return param
 end
 
