@@ -1,14 +1,20 @@
 using Revise
 using ReversibleSeismic
 
-param = AcousticPropagatorParams(nx = 100, ny = 100,
-     Rcoef=0.2, dx=20.0, dy=20.0, dt=0.05, nstep=2000)
+nx = ny = 100
+nstep = 2000
+param = AcousticPropagatorParams(nx=nx, ny=ny,
+     Rcoef=0.2, dx=20.0, dy=20.0, dt=0.05, nstep=nstep)
 
-c = 1000*ones(param.NX+2, param.NY+2)
-srci = param.NX÷2
-srcj = param.NY÷2
+tu = zeros(nx+2, ny+2, nstep+1)
+tφ = zeros(nx+2, ny+2, nstep+1)
+tψ = zeros(nx+2, ny+2, nstep+1)
+
+c = 1000*ones(nx+2, ny+2)
+srci = nx ÷ 2
+srcj = ny ÷ 2
 srcv = Ricker(param, 100.0, 500.0)
-tu = solve(param, srci, srcj, srcv, c)
+@time i_solve!(param, srci, srcj, srcv, c, tu, tφ, tψ);
 loss = sum(tu .^ 2)
 @assert loss ≈ 10.931466822080788
 
