@@ -1,6 +1,6 @@
 using ReversibleSeismic
 using Test
 
-@testset "ReversibleSeismic.jl" begin
-    # Write your tests here.
+@testset "reversible" begin
+    include("reversible.jl")
 end

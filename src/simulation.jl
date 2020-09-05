@@ -1,4 +1,4 @@
-export AcousticPropagatorParams, AcousticPropagatorSolver
+export AcousticPropagatorParams, solve
 
 struct AcousticPropagatorParams{DIM}
     # number of grids along x,y axis and time steps
@@ -59,12 +59,11 @@ function pml_helper(x::Float64, nx::Int, dx::Float64, ξx::Float64, npoints_PML:
     return out
 end
 
-function one_step!(param::AcousticPropagatorParams, w, wold, φ, ψ, σ, τ, c)
+function one_step!(param::AcousticPropagatorParams, u, w, wold, φ, ψ, σ, τ, c)
     Δt = param.DELTAT
     hx, hy = param.DELTAX, param.DELTAY
-    u = zeros(param.NX+2, param.NY+2)
  
-    for j=2:param.NY+1, i=2:param.NX+1
+    @inbounds for j=2:param.NY+1, i=2:param.NX+1
         uij = (2 - σ[i,j]*τ[i,j]*Δt^2 - 2*Δt^2/hx^2 * c[i,j] - 2*Δt^2/hy^2 * c[i,j]) * w[i,j] +
             c[i,j] * (Δt/hx)^2  *  (w[i+1,j]+w[i-1,j]) +
             c[i,j] * (Δt/hy)^2  *  (w[i,j+1]+w[i,j-1]) +
@@ -73,16 +72,15 @@ function one_step!(param::AcousticPropagatorParams, w, wold, φ, ψ, σ, τ, c)
             (1 - (σ[i,j]+τ[i,j])*Δt/2) * wold[i,j] 
         u[i,j] = uij / (1 + (σ[i,j]+τ[i,j])/2*Δt)
     end
-    for j=2:param.NY+1, i=2:param.NX+1
+    @inbounds for j=2:param.NY+1, i=2:param.NX+1
         φ[i,j] = (1. -Δt*σ[i,j]) * φ[i,j] + Δt * c[i,j] * (τ[i,j] -σ[i,j])/2hx *  
             (u[i+1,j]-u[i-1,j])
         ψ[i,j] = (1-Δt*τ[i,j]) * ψ[i,j] + Δt * c[i,j] * (σ[i,j] -τ[i,j])/2hy * 
             (u[i,j+1]-u[i,j-1])
     end
-    u
 end
 
-function AcousticPropagatorSolver(param::AcousticPropagatorParams, srci::Int64, srcj::Int64, 
+function solve(param::AcousticPropagatorParams, srci::Int64, srcj::Int64, 
             srcv::Array{Float64, 1}, c::Array{Float64, 2})
 
     tu = zeros(param.NX+2, param.NY+2, param.NSTEP+1)
@@ -90,7 +88,7 @@ function AcousticPropagatorSolver(param::AcousticPropagatorParams, srci::Int64, 
     tψ = zeros(param.NX+2, param.NY+2)
 
     for i = 3:param.NSTEP+1
-        tu[:,:,i] .= one_step!(param, tu[:,:,i-1], tu[:,:,i-2], tφ, tψ, param.Σx, param.Σy, c)
+        one_step!(param, view(tu,:,:,i), view(tu,:,:,i-1), view(tu,:,:,i-2), tφ, tψ, param.Σx, param.Σy, c)
         tu[srci, srcj, i] += srcv[i-2]*param.DELTAT^2
     end
 
