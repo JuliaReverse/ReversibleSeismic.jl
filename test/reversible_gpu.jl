@@ -47,13 +47,13 @@ function getgrad_gpu(c::AbstractMatrix{T}; nstep::Int) where T
           Rcoef=0.2, dx=20.0, dy=20.0, dt=0.05, nstep=nstep) |> cu
 
      c = copy(c)
-     tu = zeros(T, size(c)..., nstep+1)
-     tφ = zeros(T, size(c)..., nstep+1)
-     tψ = zeros(T, size(c)..., nstep+1)
+     tu = zeros(T, size(c)..., nstep+1) |> CuArray
+     tφ = zeros(T, size(c)..., nstep+1) |> CuArray
+     tψ = zeros(T, size(c)..., nstep+1) |> CuArray
 
      srci = size(c, 1) ÷ 2 - 1
      srcj = size(c, 2) ÷ 2 - 1
-     srcv = Ricker(param, 100.0, 500.0)
+     srcv = Ricker(param, 100.0, 500.0) |> CuArray
      NiLang.AD.gradient(Val(1), i_loss_gpu!, (0.0, param, srci, srcj, srcv, c, tu, tφ, tψ))[end-3]
 end
 
@@ -62,16 +62,16 @@ obtain gradients numerically, for gradient checking.
 """
 function getngrad_gpu(c::AbstractMatrix{T}, i, j; nstep::Int, δ=1e-4) where T
      param = AcousticPropagatorParams(nx=size(c,1)-2, ny=size(c,2)-2,
-          Rcoef=0.2, dx=20.0, dy=20.0, dt=0.05, nstep=nstep)
+          Rcoef=0.2, dx=20.0, dy=20.0, dt=0.05, nstep=nstep) |> cu
 
      c = copy(c)
-     tu = zeros(T, size(c)..., nstep+1)
-     tφ = zeros(T, size(c)..., nstep+1)
-     tψ = zeros(T, size(c)..., nstep+1)
+     tu = zeros(T, size(c)..., nstep+1) |> CuArray
+     tφ = zeros(T, size(c)..., nstep+1) |> CuArray
+     tψ = zeros(T, size(c)..., nstep+1) |> CuArray
 
      srci = size(c, 1) ÷ 2 - 1
      srcj = size(c, 2) ÷ 2 - 1
-     srcv = Ricker(param, 100.0, 500.0)
+     srcv = Ricker(param, 100.0, 500.0) |> CuArray
      c[i,j] += δ
      fpos = i_loss_gpu!(0.0, param, srci, srcj, srcv, copy(c), copy(tu), copy(tφ), copy(tψ))[1]
      c[i,j] -= 2δ
@@ -82,7 +82,7 @@ end
 
 @testset "gradient" begin
      nx = ny = 100
-     nstep = 2000
+     nstep = 200
      c = 1000*ones(nx+2, ny+2)
      g4545 = getgrad_gpu(c; nstep=nstep)[45,45]
      ng4545 = getngrad_gpu(c, 45, 45; nstep=nstep, δ=1e-4)
