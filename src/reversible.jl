@@ -2,8 +2,12 @@ using NiLang
 
 export i_solve!
 
+# do not wrap fields
+NiLang.AD.GVar(param::AcousticPropagatorParams) = param
+NiLang.AD.grad(param::AcousticPropagatorParams) = nothing
+
 @i function i_one_step!(param::AcousticPropagatorParams, u, w, wold, φ, φ0, ψ, ψ0, σ, τ, c::AbstractMatrix{T}) where T
-    @routine begin
+    @routine @invcheckoff begin
         @zeros Float64 Δt hx hy Δt2 Δt_hx Δt_hy Δt_hx2 Δt_hy2 Δt_2
         Δt += param.DELTAT
         hx += param.DELTAX
@@ -76,7 +80,7 @@ export i_solve!
 end
 
 @i function i_solve!(param::AcousticPropagatorParams, srci::Int64, srcj::Int64, 
-            srcv::Array{Float64, 1}, c::Array{T, 2},
+            srcv::Array{T, 1}, c::Array{T, 2},
             tu::Array{T,3}, tφ::Array{T,3}, tψ::Array{T,3}) where T
 
     for i = 3:param.NSTEP+1

@@ -12,21 +12,19 @@ tu = solve(param, srci, srcj, srcv, c)
 loss = sum(tu .^ 2)
 @assert loss ≈ 10.931466822080788
 
-#=
 using PyPlot 
 
-function viz(param， tu)
+function viz(param, tu)
      close("all")
      plot(srcv)
      savefig("_srcv.png")
 
      for i = 1:200:param.NSTEP+1
           close("all")
-          pcolormesh(reshape(tu[:,i], param.NX+2, param.NY+2))
+          pcolormesh(tu[:,:,i])
           colorbar()
           savefig("_f$i.png")
      end
 end
 
-viz(tu, param)
-=#
+viz(param, tu)
