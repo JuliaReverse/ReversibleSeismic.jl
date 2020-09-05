@@ -1,5 +1,3 @@
-using NiLang
-
 export i_solve!
 
 # do not wrap fields
@@ -19,7 +17,7 @@ NiLang.AD.grad(param::AcousticPropagatorParams) = nothing
         Δt_hy2 += Δt_hy ^ 2
         Δt_2 += Δt/2
     end
- 
+
     @invcheckoff @inbounds for j=2:param.NY+1
         for i=2:param.NX+1
             @routine begin
@@ -45,8 +43,8 @@ NiLang.AD.grad(param::AcousticPropagatorParams) = nothing
                 uij += cΔt_hy2  *  dwy
                 uij += anc2 * dφx
                 uij += anc3 * dψy
-                uij -= wold[i,j] 
-                uij += σpτΔt_2 * wold[i,j] 
+                uij -= wold[i,j]
+                uij += σpτΔt_2 * wold[i,j]
                 σpτΔt_2 += 1
             end
             u[i,j] += uij / σpτΔt_2
@@ -79,7 +77,7 @@ NiLang.AD.grad(param::AcousticPropagatorParams) = nothing
     ~@routine
 end
 
-@i function i_solve!(param::AcousticPropagatorParams, srci::Int64, srcj::Int64, 
+@i function i_solve!(param::AcousticPropagatorParams, srci::Int64, srcj::Int64,
             srcv::Array{T, 1}, c::Array{T, 2},
             tu::Array{T,3}, tφ::Array{T,3}, tψ::Array{T,3}) where T
 
