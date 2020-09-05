@@ -1,6 +1,6 @@
 export AcousticPropagatorParams, solve
 
-struct AcousticPropagatorParams{DIM}
+struct AcousticPropagatorParams{DIM, AT<:AbstractArray{Float64,DIM}}
     # number of grids along x,y axis and time steps
     NX::Int64
     NY::Int64 
@@ -12,8 +12,8 @@ struct AcousticPropagatorParams{DIM}
     DELTAT::Float64
 
     # Auxilliary Data
-    Σx::Array{Float64,DIM}
-    Σy::Array{Float64,DIM}
+    Σx::AT
+    Σy::AT
 end
 
 function AcousticPropagatorParams(; nx::Int, ny::Int, nstep::Int,
@@ -42,7 +42,7 @@ function AcousticPropagatorParams(; nx::Int, ny::Int, nstep::Int,
                 USE_PML_YMIN, USE_PML_YMAX)
         end
     end
-    return AcousticPropagatorParams{2}(nx, ny, nstep, dx, dy, dt, Σx, Σy)
+    return AcousticPropagatorParams(nx, ny, nstep, dx, dy, dt, Σx, Σy)
 end
 
 function pml_helper(x::Float64, nx::Int, dx::Float64, ξx::Float64, npoints_PML::Int,
