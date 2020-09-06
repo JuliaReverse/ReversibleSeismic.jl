@@ -63,9 +63,9 @@ uuid = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 
 [[LogarithmicNumbers]]
 deps = ["Random", "Requires"]
-git-tree-sha1 = "fa14eb7801e95b3c996612d9d62899ebe5c8f877"
+git-tree-sha1 = "4d2e9d7c83cda0e3f5cb138cc4fe681dd422b138"
 uuid = "aa2f6b4e-9042-5d33-9679-40d3a6b85899"
-version = "0.4.0"
+version = "0.4.1"
 
 [[Logging]]
 uuid = "56ddb016-857b-54e1-b83d-db4d58db5568"
@@ -152,10 +152,10 @@ uuid = "189a3867-3050-52da-a836-e630ba90ab69"
 version = "0.2.0"
 
 [[Requires]]
-deps = ["UUIDs"]
-git-tree-sha1 = "8c08d0c7812169e438a8478dae2a529377ad13f7"
+deps = ["Test"]
+git-tree-sha1 = "f6fbf4ba64d295e146e49e021207993b6b48c7d1"
 uuid = "ae029012-a4dd-5104-9daa-d747884805df"
-version = "1.0.2"
+version = "0.5.2"
 
 [[SHA]]
 uuid = "ea8e919c-243c-51af-8825-aaa63cd721ce"
