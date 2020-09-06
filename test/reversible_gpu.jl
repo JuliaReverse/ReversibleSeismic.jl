@@ -1,81 +1,46 @@
 using Test
-using Revise
 using ReversibleSeismic
 using KernelAbstractions
 using NiLang
 using NiLang.AD
 using CUDA
 
-function CUDA.cu(a::AcousticPropagatorParams{DIM}) where DIM
-     AcousticPropagatorParams(a.NX, a.NY, a.NSTEP, a.DELTAX, a.DELTAY, a.DELTAT, CuArray(a.Σx), CuArray(a.Σy))
-end
-
 """
 the reversible loss
 """
 @i function i_loss_gpu!(out!::T, param, srci, srcj, srcv::Vector{T}, c::AbstractMatrix{T},
-          tu::AbstractArray{T,3}, tφ::AbstractArray{T,3}, tψ::AbstractArray{T,3}) where T
-     i_solve_parallel!(param, srci, srcj, srcv, c, tu, tφ, tψ; device=CUDADevice(), nthread=256)
-     out! += sum((@skip! abs2), tu)
-end
-
-@inline function mp(out!, a)
-    MinusEq(abs2)(out!, a)[2]
-end
-
-@inline function pp(out!, a)
-   PlusEq(abs2)(out!, a)[2]
-end
-# define the gradient function
-function (_::MinusEq{typeof(sum)})(out!::GVar{T}, ::typeof(abs2), x::AbstractArray{<:GVar{T}}) where T
-    out! = GVar(out!.x-mapreduce(a->abs2(a.x), +, x; init=zero(T)), out!.g)
-    x .= mp.(out!, x)
-    out!, abs2, x
-end
-
-# define the gradient function
-function (_::PlusEq{typeof(sum)})(out!::GVar{T}, ::typeof(abs2), x::AbstractArray{<:GVar{T}}) where {T}
-    out! = chfield(out!, value, out!.x-sum(a->abs2(a.x), x))
-    x .= pp.(out!, x)
-    out!, abs2, x
-end
-
-@testset "sum instr" begin
-    out = 0.4
-    x = randn(5)
-    @test check_grad(PlusEq(sum), (out, abs2, x); iloss=1)
-    @test check_grad(MinusEq(sum), (out, abs2, x); iloss=1)
-    @test check_grad(PlusEq(sum), (out, abs2, x |> CuArray); iloss=1)
-    @test check_grad(MinusEq(sum), (out, abs2, x |> CuArray); iloss=1)
+          tua::AbstractArray{T,3}, tφa::AbstractArray{T,3}, tψa::AbstractArray{T,3},
+          tub::AbstractArray{T,3}, tφb::AbstractArray{T,3}, tψb::AbstractArray{T,3}) where T
+     i_solve_parallel!(param, srci, srcj, srcv, c, tua, tφa, tψa, tub, tφb, tψb; device=CUDADevice(), nthread=256)
+     out! += sum((@skip! abs2), tub)
 end
 
 @testset "loss" begin
+     T = Float64
      nx = ny = 99
-     nstep = 2000
+     na = 52
+     nb = 41
      param = AcousticPropagatorParams(nx=nx, ny=ny,
-          Rcoef=0.2, dx=20.0, dy=20.0, dt=0.05, nstep=nstep) |> cu
+          Rcoef=0.2, dx=20.0, dy=20.0, dt=0.05, nstep=(na-2)*(nb-1)+2) |> cu
 
-     tu = zeros(nx+2, ny+2, nstep+1) |> CuArray
-     tφ = zeros(nx+2, ny+2, nstep+1) |> CuArray
-     tψ = zeros(nx+2, ny+2, nstep+1) |> CuArray
+     tua = CUDA.zeros(T, nx+2, ny+2, na)
+     tφa = CUDA.zeros(T, nx+2, ny+2, na)
+     tψa = CUDA.zeros(T, nx+2, ny+2, na)
+     tub = CUDA.zeros(T, nx+2, ny+2, 2nb)
+     tφb = CUDA.zeros(T, nx+2, ny+2, nb)
+     tψb = CUDA.zeros(T, nx+2, ny+2, nb)
 
-     c = 1000*ones(nx+2, ny+2) |> CuArray
+     c = 1000*CUDA.ones(T, nx+2, ny+2)
      srci = nx ÷ 2
      srcj = ny ÷ 2
      srcv = Ricker(param, 100.0, 500.0)
 
      loss = 0.0
-     @instr i_loss_gpu!(loss, param, srci, srcj, srcv, c, tu, tφ, tψ)
-     @test loss ≈ 10.793184222614805
-     @instr ~i_loss_gpu!(loss, param, srci, srcj, srcv, c, tu, tφ, tψ)
+     @instr i_loss_gpu!(loss, param, srci, srcj, srcv, c, tua, tφa, tψa, tub, tφb, tψb)
+     @test loss ≈ 0.4317925530445345
+     @instr ~i_loss_gpu!(loss, param, srci, srcj, srcv, c, tua, tφa, tψa, tub, tφb, tψb)
      @test loss ≈ 0.0
-
-     @test isapprox(tu, zeros(nx+2, ny+2, nstep+1) |> CuArray, atol=1e-6)
-     @test isapprox(tφ, zeros(nx+2, ny+2, nstep+1) |> CuArray, atol=1e-6)
-     @test isapprox(tψ, zeros(nx+2, ny+2, nstep+1) |> CuArray, atol=1e-6)
-
-     @test isapprox(c, 1000*ones(nx+2, ny+2) |> CuArray, atol=1e-6)
-     @test isapprox(srcv, Ricker(param, 100.0, 500.0), atol=1e-6)
+     @test isapprox(Array(tub), zeros(nx+2, ny+2, 2nb), atol=1e-6)
 end
 
 """
@@ -83,38 +48,31 @@ obtain gradients with NiLang.AD
 """
 function getgrad_gpu(c::AbstractMatrix{T}; nstep::Int) where T
      param = AcousticPropagatorParams(nx=size(c,1)-2, ny=size(c,2)-2,
-          Rcoef=0.2, dx=20.0, dy=20.0, dt=0.05, nstep=nstep) |> cu
+          Rcoef=0.2, dx=20.0, dy=20.0, dt=0.05, nstep=(na-1)*(nb-1)+2) |> cu
 
      c = c |> CuArray
-     tu = zeros(T, size(c)..., nstep+1) |> CuArray
-     tφ = zeros(T, size(c)..., nstep+1) |> CuArray
-     tψ = zeros(T, size(c)..., nstep+1) |> CuArray
+     tua = CUDA.zeros(T, nx+2, ny+2, na)
+     tφa = CUDA.zeros(T, nx+2, ny+2, na)
+     tψa = CUDA.zeros(T, nx+2, ny+2, na)
+     tub = CUDA.zeros(T, nx+2, ny+2, nb)
+     tφb = CUDA.zeros(T, nx+2, ny+2, nb)
+     tψb = CUDA.zeros(T, nx+2, ny+2, nb)
 
      srci = size(c, 1) ÷ 2 - 1
      srcj = size(c, 2) ÷ 2 - 1
      srcv = Ricker(param, 100.0, 500.0)
-     NiLang.AD.gradient(Val(1), i_loss_gpu!, (0.0, param, srci, srcj, srcv, c, tu, tφ, tψ))[end-3]
+     NiLang.AD.gradient(Val(1), i_loss_gpu!, (0.0, param, srci, srcj, srcv,
+               c, tua, tφa, tψa, tub, tφb, tψb))[6]
 end
 
 """
 obtain gradients numerically, for gradient checking.
 """
-function getngrad_gpu(c::AbstractMatrix{T}, i, j; nstep::Int, δ=1e-4) where T
-     param = AcousticPropagatorParams(nx=size(c,1)-2, ny=size(c,2)-2,
-          Rcoef=0.2, dx=20.0, dy=20.0, dt=0.05, nstep=nstep) |> cu
-
-     c = c |> CuArray
-     tu = zeros(T, size(c)..., nstep+1) |> CuArray
-     tφ = zeros(T, size(c)..., nstep+1) |> CuArray
-     tψ = zeros(T, size(c)..., nstep+1) |> CuArray
-
-     srci = size(c, 1) ÷ 2 - 1
-     srcj = size(c, 2) ÷ 2 - 1
-     srcv = Ricker(param, 100.0, 500.0)
+function getngrad_gpu(c::AbstractMatrix{T}, i, j; na::Int, nb::Int, δ=1e-4) where T
      c[i,j] += δ
-     fpos = i_loss_gpu!(0.0, param, srci, srcj, srcv, copy(c), copy(tu), copy(tφ), copy(tψ))[1]
+     fpos = loss_gpu(c; na=na, nb=nb)
      c[i,j] -= 2δ
-     fneg = i_loss_gpu!(0.0, param, srci, srcj, srcv, copy(c), copy(tu), copy(tφ), copy(tψ))[1]
+     fneg = loss_gpu(c; na=na, nb=nb)
      return (fpos - fneg)/2δ
 end
 

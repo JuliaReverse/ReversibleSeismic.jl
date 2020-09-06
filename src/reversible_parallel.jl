@@ -134,6 +134,10 @@ end
         tφb[:,:,b+1] .+= tφa[:,:,end]
         tψb[:,:,b+1] .+= tψa[:,:,end]
         ~@routine
+        @safe @show maximum(abs.(tua))
+        @safe @assert isapprox(tua, zero(tua), atol=1e-8)
+        @safe @assert isapprox(tφa, zero(tφa), atol=1e-8)
+        @safe @assert isapprox(tψa, zero(tψa), atol=1e-8)
         @safe tua .= 0.0  # avoid the accumulation of rounding errors!
         @safe tφa .= 0.0
         @safe tψa .= 0.0

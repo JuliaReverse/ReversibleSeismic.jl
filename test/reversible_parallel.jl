@@ -57,7 +57,7 @@ end
      loss = i_loss_parallel!(0.0, param, srci, srcj, srcv, c, tua, tφa, tψa, tub, tφb, tψb)[1]
 
      @test check_inv(i_loss_parallel!, (0.0, param, srci, srcj, srcv, c, tua, tφa, tψa, tub, tφb, tψb); atol=1e-6)
-     @test loss ≈ 10.931466822080788
+     @test loss ≈ 0.4317925530445345
 end
 
 """

@@ -7,4 +7,6 @@ include("reversible.jl")
 include("reversible_parallel.jl")
 include("utils.jl")
 
+include("cuda.jl")
+
 end
