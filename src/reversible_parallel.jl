@@ -12,7 +12,7 @@ function print_backward(str="")
 end
 @dual print_forward print_backward
 
-# `DI/DJ ~ [0, 1]`, number of threads should be `(nx÷2) * (ny÷2)`.
+# `DI/DJ ~ [-1, 0, 1]`, number of threads should be `(nx÷3) * (ny÷3)`.
 @i @kernel function i_one_step_kernel1!(Δt, hx, hy, u!, w, wold, φ!, φ0, ψ!, ψ0, σ, τ, c::AbstractMatrix{T}, vi::Val{DI}, vj::Val{DJ}) where {T,DI,DJ}
     # update u!
     @routine @invcheckoff begin
@@ -25,8 +25,8 @@ end
         Δt_2 += Δt/2
 
         inds ← @index(Global, NTuple)
-        i ← inds[1]*2 + DI
-        j ← inds[2]*2 + DJ
+        i ← inds[1]*3 + DI - 1
+        j ← inds[2]*3 + DJ - 1
     end
 
     @routine @invcheckoff begin
@@ -66,8 +66,8 @@ end
 @i @kernel function i_one_step_kernel2!(Δt, hx, hy, u!, w, wold, φ!, φ0, ψ!, ψ0, σ, τ, c::AbstractMatrix{T}, vi::Val{DI}, vj::Val{DJ}) where {T,DI,DJ}
     @routine @invcheckoff begin
         inds ← @index(Global, NTuple)
-        i ← inds[1]*2 + DI
-        j ← inds[2]*2 + DJ
+        i ← inds[1]*3 + DI - 1
+        j ← inds[2]*3 + DJ - 1
         @zeros Float64 Δt_hx Δt_hy
         Δt_hx += Δt / hx
         Δt_hy += Δt / hy
@@ -100,19 +100,20 @@ end
             srcv::AbstractArray{T, 1}, c::AbstractArray{T, 2},
             tu::AbstractArray{T,3}, tφ::AbstractArray{T,3}, tψ::AbstractArray{T,3};
             device, nthread::Int) where T
+    @safe @assert param.NX%3 == 0 && param.NY%3 == 0 "NX and NY must be multiple of 3, got $(param.NX) and $(param.NY)"
     for i = 3:param.NSTEP+1
-        for (DI, DJ) in ((0, 0), (0, 1), (1, 0), (1, 1))
-            @launchkernel device nthread (param.NX÷2, param.NY÷2) i_one_step_kernel1!(
+        for (DI, DJ) in Base.Iterators.product((0,1,2), (0,1,2))
+            @launchkernel device nthread (param.NX÷3, param.NY÷3) i_one_step_kernel1!(
                 param.DELTAT, param.DELTAX, param.DELTAY, view(tu,:,:,i), view(tu,:,:,i-1), view(tu,:,:,i-2),
                 view(tφ,:,:,i), view(tφ,:,:,i-1), view(tψ,:,:,i), view(tψ,:,:,i-1), param.Σx, param.Σy, c,
                 Val(DI), Val(DJ))
         end
-        for (DI, DJ) in ((0, 0), (0, 1), (1, 0), (1, 1))
-            @launchkernel device nthread (param.NX÷2, param.NY÷2) i_one_step_kernel2!(
+        for (DI, DJ) in Base.Iterators.product((0,1,2), (0,1,2))
+            @launchkernel device nthread (param.NX÷3, param.NY÷3) i_one_step_kernel2!(
                 param.DELTAT, param.DELTAX, param.DELTAY, view(tu,:,:,i), view(tu,:,:,i-1), view(tu,:,:,i-2),
                 view(tφ,:,:,i), view(tφ,:,:,i-1), view(tψ,:,:,i), view(tψ,:,:,i-1), param.Σx, param.Σy, c,
                 Val(DI), Val(DJ))
         end
-        tu[srci, srcj, i] += srcv[i-2]*param.DELTAT^2
+        tu[srci, srcj, i] += srcv[i-2]*(param.DELTAT^2)
     end
 end
