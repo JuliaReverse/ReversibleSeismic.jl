@@ -98,22 +98,44 @@ end
 
 @i function i_solve_parallel!(param::AcousticPropagatorParams, srci::Int, srcj::Int,
             srcv::AbstractArray{T, 1}, c::AbstractArray{T, 2},
-            tu::AbstractArray{T,3}, tφ::AbstractArray{T,3}, tψ::AbstractArray{T,3};
+            tua::AbstractArray{T,3}, tφa::AbstractArray{T,3}, tψa::AbstractArray{T,3},
+            tub::AbstractArray{T,3}, tφb::AbstractArray{T,3}, tψb::AbstractArray{T,3};
             device, nthread::Int) where T
     @safe @assert param.NX%3 == 0 && param.NY%3 == 0 "NX and NY must be multiple of 3, got $(param.NX) and $(param.NY)"
-    for i = 3:param.NSTEP+1
-        for (DI, DJ) in Base.Iterators.product((0,1,2), (0,1,2))
-            @launchkernel device nthread (param.NX÷3, param.NY÷3) i_one_step_kernel1!(
-                param.DELTAT, param.DELTAX, param.DELTAY, view(tu,:,:,i), view(tu,:,:,i-1), view(tu,:,:,i-2),
-                view(tφ,:,:,i), view(tφ,:,:,i-1), view(tψ,:,:,i), view(tψ,:,:,i-1), param.Σx, param.Σy, c,
-                Val(DI), Val(DJ))
+    @safe @assert size(tψa)[1] == param.NX+2 && size(tψa)[2] == param.NY+2
+    @safe @assert size(tψa) == size(tφa) == size(tua)
+    @safe @assert size(tψb) == size(tφb) == (size(tub, 1), size(tub, 2), size(tub,3)÷2)
+    for b = 1:size(tub, 3)÷2-1
+        @routine begin
+            # load data from the stack top of B to A
+            tua[:,:,1] .+= tub[:,:,2b-1]
+            tua[:,:,2] .+= tub[:,:,2b]
+            tφa[:,:,2] .+= tφb[:,:,b]
+            tψa[:,:,2] .+= tψb[:,:,b]
+            for a = 3:size(tua, 3)
+                for (DI, DJ) in Base.Iterators.product((0,1,2), (0,1,2))
+                    @launchkernel device nthread (param.NX÷3, param.NY÷3) i_one_step_kernel1!(
+                        param.DELTAT, param.DELTAX, param.DELTAY, view(tua,:,:,a), view(tua,:,:,a-1), view(tua,:,:,a-2),
+                        view(tφa,:,:,a), view(tφa,:,:,a-1), view(tψa,:,:,a), view(tψa,:,:,a-1), param.Σx, param.Σy, c,
+                        Val(DI), Val(DJ))
+                end
+                for (DI, DJ) in Base.Iterators.product((0,1,2), (0,1,2))
+                    @launchkernel device nthread (param.NX÷3, param.NY÷3) i_one_step_kernel2!(
+                        param.DELTAT, param.DELTAX, param.DELTAY, view(tua,:,:,a), view(tua,:,:,a-1), view(tua,:,:,a-2),
+                        view(tφa,:,:,a), view(tφa,:,:,a-1), view(tψa,:,:,a), view(tψa,:,:,a-1), param.Σx, param.Σy, c,
+                        Val(DI), Val(DJ))
+                end
+                tua[srci, srcj, a] += srcv[(b-1)*(size(tua,3)-2) + a]*(param.DELTAT^2)
+            end
         end
-        for (DI, DJ) in Base.Iterators.product((0,1,2), (0,1,2))
-            @launchkernel device nthread (param.NX÷3, param.NY÷3) i_one_step_kernel2!(
-                param.DELTAT, param.DELTAX, param.DELTAY, view(tu,:,:,i), view(tu,:,:,i-1), view(tu,:,:,i-2),
-                view(tφ,:,:,i), view(tφ,:,:,i-1), view(tψ,:,:,i), view(tψ,:,:,i-1), param.Σx, param.Σy, c,
-                Val(DI), Val(DJ))
-        end
-        tu[srci, srcj, i] += srcv[i-2]*(param.DELTAT^2)
+        # copy the stack top of A to B
+        tub[:,:,2b+1] .+= tua[:,:,end-1]
+        tub[:,:,2b+2] .+= tua[:,:,end]
+        tφb[:,:,b+1] .+= tφa[:,:,end]
+        tψb[:,:,b+1] .+= tψa[:,:,end]
+        ~@routine
+        @safe tua .= 0.0  # avoid the accumulation of rounding errors!
+        @safe tφa .= 0.0
+        @safe tψa .= 0.0
     end
 end
