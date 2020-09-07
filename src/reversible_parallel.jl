@@ -112,6 +112,7 @@ end
             tua[:,:,2] .+= tub[:,:,2b]
             tφa[:,:,2] .+= tφb[:,:,b]
             tψa[:,:,2] .+= tψb[:,:,b]
+            @safe CUDA.synchronize()  #! need to sync!
             for a = 3:size(tua, 3)
                 for (DI, DJ) in Base.Iterators.product((0,1,2), (0,1,2))
                     @launchkernel device nthread (param.NX÷3, param.NY÷3) i_one_step_kernel1!(
@@ -134,10 +135,6 @@ end
         tφb[:,:,b+1] .+= tφa[:,:,end]
         tψb[:,:,b+1] .+= tψa[:,:,end]
         ~@routine
-        @safe @show maximum(abs.(tua))
-        @safe @assert isapprox(tua, zero(tua), atol=1e-8)
-        @safe @assert isapprox(tφa, zero(tφa), atol=1e-8)
-        @safe @assert isapprox(tψa, zero(tψa), atol=1e-8)
         @safe tua .= 0.0  # avoid the accumulation of rounding errors!
         @safe tφa .= 0.0
         @safe tψa .= 0.0

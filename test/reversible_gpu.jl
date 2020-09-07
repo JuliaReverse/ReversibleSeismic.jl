@@ -15,6 +15,27 @@ the reversible loss
      out! += sum((@skip! abs2), tub)
 end
 
+function loss_gpu(c::AbstractMatrix{T}; na, nb) where T
+     nx = size(c, 1) - 2
+     ny = size(c, 2) - 2
+     param = AcousticPropagatorParams(nx=nx, ny=ny,
+          Rcoef=0.2, dx=20.0, dy=20.0, dt=0.05, nstep=(na-2)*(nb-1)+2) |> cu
+
+     tua = CUDA.zeros(T, nx+2, ny+2, na)
+     tφa = CUDA.zeros(T, nx+2, ny+2, na)
+     tψa = CUDA.zeros(T, nx+2, ny+2, na)
+     tub = CUDA.zeros(T, nx+2, ny+2, 2nb)
+     tφb = CUDA.zeros(T, nx+2, ny+2, nb)
+     tψb = CUDA.zeros(T, nx+2, ny+2, nb)
+
+     srci = nx ÷ 2
+     srcj = ny ÷ 2
+     srcv = Ricker(param, 100.0, 500.0)
+
+     loss = 0.0
+     i_loss_gpu!(loss, param, srci, srcj, srcv, CuArray(c), tua, tφa, tψa, tub, tφb, tψb)[1]
+end
+
 @testset "loss" begin
      T = Float64
      nx = ny = 99
@@ -46,7 +67,7 @@ end
 """
 obtain gradients with NiLang.AD
 """
-function getgrad_gpu(c::AbstractMatrix{T}; nstep::Int) where T
+function getgrad_gpu(c::AbstractMatrix{T}; na::Int, nb::Int) where T
      param = AcousticPropagatorParams(nx=size(c,1)-2, ny=size(c,2)-2,
           Rcoef=0.2, dx=20.0, dy=20.0, dt=0.05, nstep=(na-1)*(nb-1)+2) |> cu
 
@@ -54,7 +75,7 @@ function getgrad_gpu(c::AbstractMatrix{T}; nstep::Int) where T
      tua = CUDA.zeros(T, nx+2, ny+2, na)
      tφa = CUDA.zeros(T, nx+2, ny+2, na)
      tψa = CUDA.zeros(T, nx+2, ny+2, na)
-     tub = CUDA.zeros(T, nx+2, ny+2, nb)
+     tub = CUDA.zeros(T, nx+2, ny+2, 2nb)
      tφb = CUDA.zeros(T, nx+2, ny+2, nb)
      tψb = CUDA.zeros(T, nx+2, ny+2, nb)
 
@@ -69,6 +90,7 @@ end
 obtain gradients numerically, for gradient checking.
 """
 function getngrad_gpu(c::AbstractMatrix{T}, i, j; na::Int, nb::Int, δ=1e-4) where T
+     c = c |> CuArray
      c[i,j] += δ
      fpos = loss_gpu(c; na=na, nb=nb)
      c[i,j] -= 2δ
@@ -81,7 +103,7 @@ end
      nx = ny = 99
      nstep = 500
      c = 1000*ones(Float64, nx+2, ny+2)
-     g4545 = getgrad_gpu(c; nstep=nstep)[45,45]
-     ng4545 = getngrad_gpu(c, 45, 45; nstep=nstep, δ=1e-3)
+     g4545 = getgrad_gpu(c; na=52, nb=41)[45,45]
+     ng4545 = getngrad_gpu(c, 45, 45; na=52, nb=41, δ=1e-3)
      @test isapprox(g4545, ng4545; rtol=1e-2)
 end
