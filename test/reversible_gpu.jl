@@ -68,6 +68,7 @@ end
 obtain gradients with NiLang.AD
 """
 function getgrad_gpu(c::AbstractMatrix{T}; na::Int, nb::Int) where T
+     nx, ny = size(c) .- 2
      param = AcousticPropagatorParams(nx=size(c,1)-2, ny=size(c,2)-2,
           Rcoef=0.2, dx=20.0, dy=20.0, dt=0.05, nstep=(na-1)*(nb-1)+2) |> cu
 
