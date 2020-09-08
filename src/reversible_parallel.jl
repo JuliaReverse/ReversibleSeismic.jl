@@ -138,5 +138,6 @@ end
         @safe tua .= 0.0  # avoid the accumulation of rounding errors!
         @safe tφa .= 0.0
         @safe tψa .= 0.0
+        @safe GC.gc()
     end
 end
