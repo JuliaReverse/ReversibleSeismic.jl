@@ -1,4 +1,4 @@
-using KernelAbstractions
+using .KernelAbstractions
 
 export i_solve_parallel!
 
