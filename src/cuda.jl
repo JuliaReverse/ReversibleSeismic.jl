@@ -1,4 +1,4 @@
-using CUDA
+using .CUDA
 using NiLang.AD: GVar
 
 function CUDA.cu(a::AcousticPropagatorParams{DIM}) where DIM
