@@ -114,13 +114,10 @@ gradc = getgrad(c; nstep=nstep);
 heatmap(gradc)
 
 # ╔═╡ 16504abe-f180-11ea-33b6-bfb2937f0846
-res = optimize(c->(@show loss(c, nstep=nstep)[1]), (g, c)->(g.=getgrad(c; nstep=nstep)), c, BFGS(), Optim.Options(iterations=5, g_tol=1e-30, f_tol=1e-30))
-
-# ╔═╡ d4498b84-f194-11ea-1e17-9394a78e0ea3
-maximum(res.minimizer)
+res = optimize(c->(@show loss(c, nstep=nstep)[1]), (g, c)->(g.=getgrad(c; nstep=nstep)), c, BFGS(), Optim.Options(iterations=15, g_tol=1e-30, f_tol=1e-30))
 
 # ╔═╡ 07a889aa-f193-11ea-3a0d-1bacdd6cc2cb
-loss(res.minimizer, nstep=nstep)[1]
+heatmap(abs.(res.minimizer) - abs.(c))
 
 # ╔═╡ 5a869532-f18d-11ea-2f3e-2b5886e7fa70
 tu_seq2 = loss(res.minimizer, nstep=nstep)[2];
@@ -156,7 +153,6 @@ heatmap(tu_seq2[2:end-1,2:end-1,end], clim=(-0.005, 0.005))
 # ╠═7bea3116-f18d-11ea-19d8-e5ef06dd114a
 # ╠═b0d4d10c-f191-11ea-2f84-1b19dcb85d6a
 # ╠═16504abe-f180-11ea-33b6-bfb2937f0846
-# ╠═d4498b84-f194-11ea-1e17-9394a78e0ea3
 # ╠═07a889aa-f193-11ea-3a0d-1bacdd6cc2cb
 # ╠═5a869532-f18d-11ea-2f3e-2b5886e7fa70
 # ╠═5cd02706-f181-11ea-217e-c167fc0a4164
