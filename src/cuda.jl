@@ -1,4 +1,5 @@
-using .CUDA
+using .KernelAbstractions: CUDA
+using .CUDA: CuArray
 using NiLang.AD: GVar
 
 function CUDA.cu(a::AcousticPropagatorParams{DIM}) where DIM

@@ -3,7 +3,7 @@ using ReversibleSeismic
 using KernelAbstractions
 using NiLang
 using NiLang.AD
-using CUDA
+using KernelAbstractions.CUDA
 
 """
 the reversible loss

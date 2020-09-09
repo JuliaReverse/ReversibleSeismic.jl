@@ -2,9 +2,9 @@ export AcousticPropagatorParams, solve
 
 struct AcousticPropagatorParams{DIM, AT<:AbstractArray{Float64,DIM}}
     # number of grids along x,y axis and time steps
-    NX::Int64
-    NY::Int64 
-    NSTEP::Int64
+    NX::Int
+    NY::Int 
+    NSTEP::Int
 
     # size of grid cell and time step
     DELTAX::Float64
@@ -80,7 +80,7 @@ function one_step!(param::AcousticPropagatorParams, u, w, wold, φ, ψ, σ, τ, 
     end
 end
 
-function solve(param::AcousticPropagatorParams, srci::Int64, srcj::Int64, 
+function solve(param::AcousticPropagatorParams, srci::Int, srcj::Int, 
             srcv::Array{Float64, 1}, c::Array{Float64, 2})
 
     tu = zeros(param.NX+2, param.NY+2, param.NSTEP+1)
@@ -91,6 +91,5 @@ function solve(param::AcousticPropagatorParams, srci::Int64, srcj::Int64,
         one_step!(param, view(tu,:,:,i), view(tu,:,:,i-1), view(tu,:,:,i-2), tφ, tψ, param.Σx, param.Σy, c)
         tu[srci, srcj, i] += srcv[i-2]*param.DELTAT^2
     end
-
     tu
 end

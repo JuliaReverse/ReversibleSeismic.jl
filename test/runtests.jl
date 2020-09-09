@@ -2,6 +2,10 @@ using ReversibleSeismic
 using Test, Pkg
 
 @testset "reversible" begin
+    include("simulation.jl")
+end
+
+@testset "reversible" begin
     include("reversible.jl")
 end
 
@@ -14,19 +18,13 @@ function isinstalled(target)
     return false
 end
 
-if isinstalled("CUDA")
+if isinstalled("KernelAbstractions")
     @testset "cuda" begin
         include("cuda.jl")
     end
-end
-
-if isinstalled("KernelAbstractions")
     @testset "reversible_parallel" begin
         include("reversible_parallel.jl")
     end
-end
-
-if isinstalled("KernelAbstractions") && isinstalled("CUDA")
     @testset "reversible_gpu" begin
         include("reversible_gpu.jl")
     end

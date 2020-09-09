@@ -77,7 +77,7 @@ NiLang.AD.grad(param::AcousticPropagatorParams) = nothing
     ~@routine
 end
 
-@i function i_solve!(param::AcousticPropagatorParams, srci::Int64, srcj::Int64,
+@i function i_solve!(param::AcousticPropagatorParams, srci::Int, srcj::Int,
             srcv::Array{T, 1}, c::Array{T, 2},
             tu::Array{T,3}, tφ::Array{T,3}, tψ::Array{T,3}) where T
 
