@@ -4,3 +4,5 @@
 _*.png
 *.swp
 Manifest.toml
+report*.sqlite
+report*.qdrep

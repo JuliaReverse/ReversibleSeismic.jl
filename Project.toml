@@ -8,8 +8,8 @@ NiLang = "ab4ef3a6-0b42-11ea-31f6-e34652774712"
 Requires = "ae029012-a4dd-5104-9daa-d747884805df"
 
 [compat]
-NiLang = "0.7"
-Requires = "1"
+NiLang = "0.7, 0.8"
+Requires = "0.5, 1"
 julia = "1"
 
 [extras]

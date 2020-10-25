@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.11.12
+# v0.11.14
 
 using Markdown
 using InteractiveUtils
@@ -32,7 +32,7 @@ end
 nstep = 1500
 
 # ╔═╡ 0fa21e04-f192-11ea-03db-7d8b07acfa91
-c = 700 * (1 .+ sin.(LinRange(0, 5π, 72))' .* cos.(LinRange(0, 3π, 72)));
+c = 700 * (1 .+ sin.(LinRange(0, 5π, 82))' .* cos.(LinRange(0, 3π, 82)));
 
 # ╔═╡ b4a4159a-f178-11ea-07fc-059d9c6119cb
 """
@@ -114,7 +114,7 @@ gradc = getgrad(c; nstep=nstep);
 heatmap(gradc)
 
 # ╔═╡ 16504abe-f180-11ea-33b6-bfb2937f0846
-res = optimize(c->(@show loss(c, nstep=nstep)[1]), (g, c)->(g.=getgrad(c; nstep=nstep)), c, BFGS(), Optim.Options(iterations=15, g_tol=1e-30, f_tol=1e-30))
+res = optimize(c->(@show loss(c, nstep=nstep)[1]), (g, c)->(g.=getgrad(c; nstep=nstep)), c, BFGS(), Optim.Options(iterations=5, g_tol=1e-30, f_tol=1e-30))
 
 # ╔═╡ 07a889aa-f193-11ea-3a0d-1bacdd6cc2cb
 heatmap(abs.(res.minimizer) - abs.(c))
