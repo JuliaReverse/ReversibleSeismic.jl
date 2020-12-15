@@ -4,7 +4,7 @@ export i_solve!
 NiLang.AD.GVar(param::AcousticPropagatorParams) = param
 NiLang.AD.grad(param::AcousticPropagatorParams) = nothing
 
-@i function i_one_step!(param::AcousticPropagatorParams, u, w, wold, φ, φ0, ψ, ψ0, σ, τ, c::AbstractMatrix{T}) where T
+@i function i_one_step!(param::AcousticPropagatorParams, u, w, wold, φ, φ0, ψ, ψ0, c::AbstractMatrix{T}) where T
     @routine @invcheckoff begin
         @zeros Float64 Δt hx hy Δt2 Δt_hx Δt_hy Δt_hx2 Δt_hy2 Δt_2
         Δt += param.DELTAT
@@ -22,7 +22,7 @@ NiLang.AD.grad(param::AcousticPropagatorParams) = nothing
         for i=2:param.NX+1
             @routine begin
                 @zeros T σpτ σpτΔt_2 cΔt_hx2 cΔt_hy2 dwx dwy dφx dψy στ anc1 anc2 anc3 uij
-                σpτ += σ[i,j] + τ[i,j]
+                σpτ += param.Σx[i,j] + param.Σy[i,j]
                 σpτΔt_2 += σpτ * Δt_2
                 cΔt_hx2 += Δt_hx2 * c[i,j]
                 cΔt_hy2 += Δt_hy2 * c[i,j]
@@ -30,7 +30,7 @@ NiLang.AD.grad(param::AcousticPropagatorParams) = nothing
                 dwy += w[i,j+1] + w[i,j-1]
                 dφx += φ0[i+1,j] - φ0[i-1,j]
                 dψy += ψ0[i,j+1] - ψ0[i,j-1]
-                στ += σ[i,j] * τ[i,j]
+                στ += param.Σx[i,j] * param.Σy[i,j]
 
                 anc1 += 2
                 anc1 -= στ * Δt2
@@ -55,13 +55,13 @@ NiLang.AD.grad(param::AcousticPropagatorParams) = nothing
         for i=2:param.NX+1
             @routine begin
                 @zeros T σmτ σmτ_2 dux duy cσmτ_2 σΔt τΔt anc1 anc2
-                σmτ += σ[i,j] - τ[i,j]
+                σmτ += param.Σx[i,j] - param.Σy[i,j]
                 σmτ_2 += σmτ / 2
                 dux += u[i+1,j] - u[i-1,j]
                 duy += u[i,j+1] - u[i,j-1]
                 cσmτ_2 += c[i,j] * σmτ_2
-                σΔt += Δt * σ[i,j]
-                τΔt += Δt * τ[i,j]
+                σΔt += Δt * param.Σx[i,j]
+                τΔt += Δt * param.Σy[i,j]
                 σΔt -= 1
                 τΔt -= 1
                 anc1 += Δt_hx * cσmτ_2
@@ -83,7 +83,7 @@ end
 
     for i = 3:param.NSTEP+1
         i_one_step!(param, view(tu,:,:,i), view(tu,:,:,i-1), view(tu,:,:,i-2),
-            view(tφ,:,:,i), view(tφ,:,:,i-1), view(tψ,:,:,i), view(tψ,:,:,i-1), param.Σx, param.Σy, c)
+            view(tφ,:,:,i), view(tφ,:,:,i-1), view(tψ,:,:,i), view(tψ,:,:,i-1), c)
         tu[srci, srcj, i] += srcv[i-2]*param.DELTAT^2
     end
 end

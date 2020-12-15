@@ -8,8 +8,10 @@ the reversible loss
 @i function i_loss!(out::T, param, srci, srcj, srcv::AbstractVector{T}, c::AbstractMatrix{T},
           tu::AbstractArray{T,3}, tφ::AbstractArray{T,3}, tψ::AbstractArray{T,3}) where T
      i_solve!(param, srci, srcj, srcv, c, tu, tφ, tψ)
-     for i=1:length(tu)
-          out += tu[i] ^ 2
+     for i=1:size(tu, 1)
+        for j=1:size(tu, 2)
+            out += tu[i,j,end] ^ 2
+        end
      end
 end
 
@@ -70,7 +72,8 @@ end
 
      loss = i_loss!(0.0, param, srci, srcj, srcv, c, tu, tφ, tψ)[1]
      @test check_inv(i_loss!, (0.0, param, srci, srcj, srcv, c, tu, tφ, tψ); atol=1e-6)
-     @test loss ≈ 10.931466822080788
+     #@test loss ≈ 10.931466822080788
+     @test loss ≈ 6.234873084873294e-5
 end
 
 @testset "gradient" begin

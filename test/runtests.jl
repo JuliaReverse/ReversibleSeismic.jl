@@ -9,6 +9,10 @@ end
     include("reversible.jl")
 end
 
+@testset "bennett" begin
+    include("bennett.jl")
+end
+
 function isinstalled(target)
     deps = Pkg.dependencies()
     for (uuid, dep) in deps
