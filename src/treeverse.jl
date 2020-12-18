@@ -3,7 +3,6 @@ function mid(δ, τ, σ, ϕ)
 end
 
 function treeverse!(step, s::T, state::Dict{Int,T}, δ, τ, β, σ, ϕ, depth=0) where T
-    @show depth,δ, τ
     if σ > β
         δ -= 1
         state[β] = s
