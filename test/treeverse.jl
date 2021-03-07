@@ -137,7 +137,7 @@ using NiLang.AD: GVar
         _, gs = (~i_step_fun)(
             (GVar(y[1], g[1]), P3(GVar(y[2].x, g[2].x), GVar(y[2].y, g[2].y), GVar(y[2].z,g[2].z))),
             (GVar(x[1]), GVar(x[2])))
-        NiLang.AD.grad(gs)
+        NiLang.AD.grad(gs[1]), NiLang.AD.grad(gs[2])
     end
 
     @testset "treeverse gradient" begin
@@ -177,5 +177,93 @@ using NiLang.AD: GVar
         @test log.peak_mem[] == 3
         @test length(log.fcalls) == 2*nsteps+5
         @test length(log.gcalls) == nsteps
+    end
+
+    @testset "treeverse gradient" begin
+        nx = ny = 100
+        nstep = 2000
+        c = 1000*ones(nx+2, ny+2)
+
+        # gradient
+        param = AcousticPropagatorParams(nx=size(c,1)-2, ny=size(c,2)-2,
+            Rcoef=0.2, dx=20.0, dy=20.0, dt=0.05, nstep=nstep)
+        srci = size(c, 1) ÷ 2 - 1
+        srcj = size(c, 2) ÷ 2 - 1
+        srcv = Ricker(param, 100.0, 500.0)
+
+        @i function i_loss!(out::T, param, srci, srcj, srcv::AbstractVector{T}, c::AbstractMatrix{T},
+                tu::AbstractArray{T,3}, tφ::AbstractArray{T,3}, tψ::AbstractArray{T,3}) where T
+            i_solve!(param, srci, srcj, srcv, c, tu, tφ, tψ)
+            out += tu[45,45,end]
+        end
+
+        function getnilanggrad(c::AbstractMatrix{T}) where T
+            c = copy(c)
+            tu = zeros(T, size(c)..., nstep+1)
+            tφ = zeros(T, size(c)..., nstep+1)
+            tψ = zeros(T, size(c)..., nstep+1)
+            NiLang.AD.gradient(Val(1), i_loss!, (0.0, param, srci, srcj, srcv, c, tu, tφ, tψ))[end-3]
+        end
+
+        struct SeismicState{T}
+            upre::Matrix{T}
+            u::Matrix{T}
+            φ::Matrix{T}
+            ψ::Matrix{T}
+            c::Matrix{T}
+            step::Int
+        end
+        function SeismicState(c::Matrix{T}) where T
+            SeismicState(zero(c), zero(c), zero(c), zero(c), c, 0)
+        end
+        Base.copy(s::SeismicState) = SeismicState(copy(s.upre), copy(s.u), copy(s.φ), copy(s.ψ), copy(s.c), s.step)
+        Base.zero(s::SeismicState) = SeismicState(zero(s.upre), zero(s.u), zero(s.φ), zero(s.ψ), zero(s.c), 0)
+
+        function step!(s)
+            unext = zero(s.u)
+            ReversibleSeismic.one_step!(param, unext, s.u, s.upre, s.φ, s.ψ, param.Σx, param.Σy, s.c)
+            s2 = SeismicState(s.u, unext, s.φ, s.ψ, s.c, s.step+1)
+            s2.u[srci, srcj] += srcv[s2.step]*param.DELTAT^2
+            return s2
+        end
+
+        @i function i_step!(s2, s)
+            @routine begin
+                d2 ← zero(param.DELTAT)
+                d2 += param.DELTAT^2
+            end
+            s2.upre .+= s.u
+            s2.c .+= s.c
+            ReversibleSeismic.i_one_step!(param, s2.u, s2.upre, s.upre,
+                s2.φ, s.φ, s2.ψ, s.ψ, s2.c)
+            s2.step += 1 + s.step
+            s2.u[srci, srcj] += srcv[s2.step]* d2
+            ~@routine
+        end
+
+        s1 = SeismicState(randn(102,102), randn(102,102), randn(102,102), randn(102,102), randn(102,102), 2)
+        s3 = i_step!(zero(s1), copy(s1))[1]
+        s4 = step!(copy(s1))
+        @test s3.u[2:end-2,2:end-2] ≈ s4.u[2:end-2,2:end-2]
+        @test s3.upre[2:end-2,2:end-2] ≈ s4.upre[2:end-2,2:end-2]
+        @test s3.φ[2:end-2,2:end-2] ≈ s4.φ[2:end-2,2:end-2]
+        @test s3.ψ[2:end-2,2:end-2] ≈ s4.ψ[2:end-2,2:end-2]
+        @test s3.c ≈ s4.c
+        @test s3.step ≈ s4.step
+
+        function backward_step(y, x, g)
+            gt = SeismicState([GVar(getfield(y, field), getfield(g, field)) for field in fieldnames(SeismicState)[1:end-1]]..., y.step)
+            _, gs = (~i_step!)(gt, GVar(x))
+            NiLang.AD.grad(gs)
+        end
+        g_nilang = getnilanggrad(c)
+        state0 = SeismicState(copy(c))
+        gn = SeismicState(zero(c))
+        gn.u[45,45] = 1.0
+        g_tv, log = treeverse(x->i_step!(zero(x), x)[1], backward_step, state0, gn; δ=20, N=nstep, f_inplace=true)
+        @test isapprox(g_nilang, g_tv.c; rtol=1e-2, atol=1e-8)
+        @show maximum(abs.(g_nilang - g_tv.c))
+        @show maximum(abs.(g_nilang))
+        @show maximum(abs.(g_tv.c))
     end
 end

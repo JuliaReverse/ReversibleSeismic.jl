@@ -26,7 +26,7 @@ function mid(δ, τ, σ, ϕ, d)
 end
 
 """
-    treeverse!(f, gf, s, g; δ, N, τ=binomial_fit(N,δ))
+    treeverse!(f, gf, s, g; δ, N, τ=binomial_fit(N,δ), f_inplace=true)
 
 Treeverse algorithm for back-propagating a program memory efficiently.
 
@@ -40,20 +40,21 @@ Keyword arguments
 * `δ`, the number of checkpoints,
 * `N`, the number of time steps,
 * `τ`, the number of sweeps, it is chosen as the smallest integer that `binomial(τ+δ, τ) >= N` by default.
+* `f_inplace`, whether `f` is inplace.
 
 Ref: https://www.tandfonline.com/doi/abs/10.1080/10556789208805505
 """
-function treeverse(f, gf, s::T, g; δ, N, τ=binomial_fit(N,δ)) where T
+function treeverse(f, gf, s::T, g; δ, N, τ=binomial_fit(N,δ), f_inplace=false) where T
     state = Dict{Int,typeof(s)}()
     if N > binomial(τ+δ, τ)
         error("please input a larger `τ` and `δ` so that `binomial(τ+δ, τ) >= N`!")
     end
     logger = TreeverseLog()
-    g = treeverse!(f, gf, s, state, g, δ, τ, 0, 0, N, logger)
+    g = treeverse!(f, gf, s, state, g, δ, τ, 0, 0, N, logger, f_inplace)
     return g, logger
 end
 
-function treeverse!(f, gf, s::T, state::Dict{Int,T}, g, δ, τ, β, σ, ϕ, logger) where T
+function treeverse!(f, gf, s::T, state::Dict{Int,T}, g, δ, τ, β, σ, ϕ, logger, f_inplace) where T
     logger.depth[] += 1
     if σ > β
         δ -= 1
@@ -69,7 +70,7 @@ function treeverse!(f, gf, s::T, state::Dict{Int,T}, g, δ, τ, β, σ, ϕ, logg
 
     κ = mid(δ, τ, σ, ϕ, δ)
     while τ>0 && κ < ϕ
-        g = treeverse!(f, gf, s, state, g, δ, τ, σ, κ, ϕ, logger)
+        g = treeverse!(f, gf, s, state, g, δ, τ, σ, κ, ϕ, logger, f_inplace)
         τ -= 1
         ϕ = κ
         κ = mid(δ, τ, σ, ϕ, δ)
@@ -79,7 +80,7 @@ function treeverse!(f, gf, s::T, state::Dict{Int,T}, g, δ, τ, β, σ, ϕ, logg
         error("treeverse fails!")
     end
     q = s
-    s = f(s)
+    s = f(f_inplace ? copy(s) : s)
     g = gf(s, q, g)
     push!(logger.fcalls, (τ, δ, logger.depth[], ϕ))
     push!(logger.gcalls, (τ, δ, logger.depth[], ϕ))
