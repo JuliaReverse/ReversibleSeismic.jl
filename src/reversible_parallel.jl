@@ -105,6 +105,10 @@ end
     @safe @assert size(tψa)[1] == param.NX+2 && size(tψa)[2] == param.NY+2
     @safe @assert size(tψa) == size(tφa) == size(tua)
     @safe @assert size(tψb) == size(tφb) == (size(tub, 1), size(tub, 2), size(tub,3)÷2)
+    @routine begin
+        d2 ← zero(param.DELTAT)
+        d2 += param.DELTAT^2
+    end
     for b = 1:size(tub, 3)÷2-1
         @routine begin
             # load data from the stack top of B to A
@@ -126,7 +130,7 @@ end
                         view(tφa,:,:,a), view(tφa,:,:,a-1), view(tψa,:,:,a), view(tψa,:,:,a-1), param.Σx, param.Σy, c,
                         Val(DI), Val(DJ))
                 end
-                tua[srci, srcj, a] += srcv[(b-1)*(size(tua,3)-2) + a]*(param.DELTAT^2)
+                tua[srci, srcj, a] += srcv[(b-1)*(size(tua,3)-2) + a] * d2
             end
         end
         # copy the stack top of A to B
@@ -140,4 +144,5 @@ end
         @safe tψa .= 0.0
         @safe GC.gc()
     end
+    ~@routine
 end

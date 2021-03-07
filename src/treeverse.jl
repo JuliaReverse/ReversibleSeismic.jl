@@ -1,81 +1,91 @@
-function mid(δ, τ, σ, ϕ)
-    ceil(Int, (δ*σ + τ*ϕ)/(τ+δ))
+export treeverse
+
+struct TreeverseLog
+    fcalls::Vector{NTuple{4,Int}}  # τ, δ, function index f_i := s_{i-1} -> s_{i}, length should be `(2k-1)^n`
+    gcalls::Vector{NTuple{4,Int}}  # τ, δ, function index
+    checkpoints::Vector{NTuple{4,Int}}  # τ, δ, state index
+    depth::Base.RefValue{Int}
+    peak_mem::Base.RefValue{Int}  # should be `n*(k-1)+2`
+end
+TreeverseLog() = TreeverseLog(NTuple{4,Int}[], NTuple{4,Int}[], NTuple{4,Int}[], Ref(0), Ref(0))
+
+function binomial_fit(N::Int, δ::Int)
+    τ = 1
+    while N > binomial(τ+δ, τ)
+        τ += 1
+    end
+    return τ
 end
 
-function treeverse!(step, s::T, state::Dict{Int,T}, δ, τ, β, σ, ϕ, depth=0) where T
+function mid(δ, τ, σ, ϕ, d)
+    κ = ceil(Int, (δ*σ + τ*ϕ)/(τ+δ))
+    if κ >= ϕ && d > 0
+        κ = max(σ+1, ϕ-1)
+    end
+    return κ
+end
+
+"""
+    treeverse!(f, gf, s, g; δ, N, τ=binomial_fit(N,δ))
+
+Treeverse algorithm for back-propagating a program memory efficiently.
+
+Positional arguments
+* `f`, the step function that ``s_{i+1} = f(s_i)``,
+* `gf`, the single step gradient function that ``g_i = gf(s_{i+1}, s_i, g_{i+1})``,
+* `s`, the initial state ``s_0``,
+* `g`, the gradient for the output state ``g_n``,
+
+Keyword arguments
+* `δ`, the number of checkpoints,
+* `N`, the number of time steps,
+* `τ`, the number of sweeps, it is chosen as the smallest integer that `binomial(τ+δ, τ) >= N` by default.
+
+Ref: https://www.tandfonline.com/doi/abs/10.1080/10556789208805505
+"""
+function treeverse(f, gf, s::T, g; δ, N, τ=binomial_fit(N,δ)) where T
+    state = Dict{Int,typeof(s)}()
+    if N > binomial(τ+δ, τ)
+        error("please input a larger `τ` and `δ` so that `binomial(τ+δ, τ) >= N`!")
+    end
+    logger = TreeverseLog()
+    g = treeverse!(f, gf, s, state, g, δ, τ, 0, 0, N, logger)
+    return g, logger
+end
+
+function treeverse!(f, gf, s::T, state::Dict{Int,T}, g, δ, τ, β, σ, ϕ, logger) where T
+    logger.depth[] += 1
     if σ > β
         δ -= 1
+        # snapshot s
         state[β] = s
+        push!(logger.checkpoints, (τ, δ, logger.depth[], β))
+        logger.peak_mem[] = max(logger.peak_mem[], length(state))
         for j=β:σ-1
-            s = step(s)
+            s = f(s)
+            push!(logger.fcalls, (τ, δ, logger.depth[], j+1))
         end
     end
 
-    κ = mid(δ, τ, σ, ϕ)
-    s_last = s
-    counter = 0
+    κ = mid(δ, τ, σ, ϕ, δ)
     while τ>0 && κ < ϕ
-        s_ = treeverse!(step, s, state, δ, τ, σ, κ, ϕ, depth+1)
-        if counter == 0
-            s_last = s_
-        end
-        counter += 1
+        g = treeverse!(f, gf, s, state, g, δ, τ, σ, κ, ϕ, logger)
         τ -= 1
         ϕ = κ
-        κ = mid(δ, τ, σ, ϕ)
+        κ = mid(δ, τ, σ, ϕ, δ)
     end
 
-    ϕ-σ > 1 && error("treeverse fails")
-    #gs = gradient(step, s, gs)
-    s = step(s)
+    if ϕ-σ != 1
+        error("treeverse fails!")
+    end
+    q = s
+    s = f(s)
+    g = gf(s, q, g)
+    push!(logger.fcalls, (τ, δ, logger.depth[], ϕ))
+    push!(logger.gcalls, (τ, δ, logger.depth[], ϕ))
     if σ>β
-        pop!(state, β)
+        # retrieve s
+        s = pop!(state, β)
     end
-    return s_last
-end
-
-function treeverse!(step, s::T, state::Dict{Int,T}; δ, τ) where T
-    N = binomial(δ+τ, τ)
-    treeverse!(step, s, state, δ, τ, 0, 0, N)
-end
-
-function directsolve(step, x0::T; nsteps::Int) where T
-    x = copy(x0)
-    for i=1:nsteps
-        x = step(x)
-    end
-    return x
-end
-
-using Test
-using Plots
-
-@testset "integrate" begin
-    FT = Float64
-    h = FT(0.01π)
-    dt = FT(0.01)
-    α = FT(1e-1)
-    function step(src::AbstractArray{T}) where T
-        dest = zero(src)
-        n = length(dest)
-        for i=1:n
-            g = α*(src[mod1(i+1, n)] + src[mod1(i-1, n)] - 2*src[i]) / h^2
-            dest[i] = src[i] + dt*g
-        end
-        return dest
-    end
-    n = 100
-    x = zeros(FT, n)
-    x[n÷2] = 1
-    state = Dict{Int,Vector{FT}}()
-    δ=3
-    τ=2
-    nsteps = binomial(τ+δ, τ)
-    x_last = directsolve(step, FT.(x); nsteps=nsteps)
-    s_last = treeverse!(step, FT.(x), state; τ=τ, δ=δ) |> step
-    @show s_last |> sum
-    plt = plot(s_last; label="treeverse")
-    plot!(x_last; label="direct")
-    display(plt)
-    @test x_last ≈ s_last
+    return g
 end

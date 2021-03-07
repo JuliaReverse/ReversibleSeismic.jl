@@ -81,9 +81,14 @@ end
             srcv::Array{T, 1}, c::Array{T, 2},
             tu::Array{T,3}, tφ::Array{T,3}, tψ::Array{T,3}) where T
 
-    for i = 3:param.NSTEP+1
-        i_one_step!(param, view(tu,:,:,i), view(tu,:,:,i-1), view(tu,:,:,i-2),
-            view(tφ,:,:,i), view(tφ,:,:,i-1), view(tψ,:,:,i), view(tψ,:,:,i-1), c)
-        tu[srci, srcj, i] += srcv[i-2]*param.DELTAT^2
+    @routine begin
+        d2 ← zero(param.DELTAT)
+        d2 += param.DELTAT^2
     end
+    for i = 3:param.NSTEP+1
+        i_one_step!(param, tu |> subarray(:,:,i), tu |> subarray(:,:,i-1), tu |> subarray(:,:,i-2),
+            tφ |> subarray(:,:,i), tφ |> subarray(:,:,i-1), tψ |> subarray(:,:,i), tψ |> subarray(:,:,i-1), c)
+        tu[srci, srcj, i] += srcv[i-2]* d2
+    end
+    ~@routine
 end

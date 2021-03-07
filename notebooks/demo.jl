@@ -21,11 +21,16 @@ md"# To define a loss"
             srcv::Array{T, 1}, c::Array{T, 2},
             tu::Array{T,3}, tφ::Array{T,3}, tψ::Array{T,3}) where T
 
+    @routine begin
+        d2 ← zero(param.DELTAT)
+        d2 += param.DELTAT^2
+    end
     for i = 3:param.NSTEP+1
         i_one_step!(param, view(tu,:,:,i), view(tu,:,:,i-1), view(tu,:,:,i-2),
             view(tφ,:,:,i), view(tφ,:,:,i-1), view(tψ,:,:,i), view(tψ,:,:,i-1), param.Σx, param.Σy, c)
-        tu[srci, srcj, i] += srcv[i-2]*param.DELTAT^2
+        tu[srci, srcj, i] += srcv[i-2] * d2
     end
+    ~@routine
 end
 
 # ╔═╡ 453bb1f2-f18e-11ea-086f-d18ed1055e0f

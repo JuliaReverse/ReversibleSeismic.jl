@@ -13,6 +13,10 @@ end
     include("bennett.jl")
 end
 
+@testset "treeverse" begin
+    include("treeverse.jl")
+end
+
 function isinstalled(target)
     deps = Pkg.dependencies()
     for (uuid, dep) in deps

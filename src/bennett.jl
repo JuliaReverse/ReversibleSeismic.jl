@@ -21,9 +21,14 @@ Base.copy(x::SeismicState) = SeismicState(copy(x.upre), copy(x.u), copy(x.φ), c
 end
 
 @i function bennett_step!(dest, src, param::AcousticPropagatorParams, srci, srcj, srcv, c)
+    @routine begin
+        d2 ← zero(param.DELTAT)
+        d2 += param.DELTAT^2
+    end
     i_addto!(dest.upre, src.u)
     dest.i += src.i + 1
     ReversibleSeismic.i_one_step!(param, dest.u, src.u, src.upre,
         dest.φ, src.φ, dest.ψ, src.ψ, c)
-    dest.u[srci, srcj] += srcv[dest.i]*param.DELTAT^2
+    dest.u[srci, srcj] += srcv[dest.i] * d2
+    ~@routine
 end

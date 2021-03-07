@@ -19,7 +19,7 @@ using Test
     srcj = ny ÷ 2
     srcv = Ricker(param, 100.0, 500.0)
 
-    x = SeismicState(upre, u, φ, ψ, 0)
+    x = ReversibleSeismic.SeismicState(upre, u, φ, ψ, 0)
 
     x_last = NiLang.direct_emulate(bennett_step!, copy(x), param, srci, srcj, srcv, copy(c); nsteps=nsteps)
     x_last_b = bennett(bennett_step!, zero(x), copy(x), param, srci, srcj, srcv, copy(c); k=k, nsteps=nsteps)[2]
