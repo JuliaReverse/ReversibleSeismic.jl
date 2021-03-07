@@ -180,8 +180,8 @@ using NiLang.AD: GVar
     end
 
     @testset "treeverse gradient" begin
-        nx = ny = 100
-        nstep = 2000
+        nx = ny = 50
+        nstep = 1000
         c = 1000*ones(nx+2, ny+2)
 
         # gradient
@@ -241,7 +241,7 @@ using NiLang.AD: GVar
             ~@routine
         end
 
-        s1 = SeismicState(randn(102,102), randn(102,102), randn(102,102), randn(102,102), randn(102,102), 2)
+        s1 = SeismicState([randn(nx+2,ny+2) for i=1:5]..., 2)
         s3 = i_step!(zero(s1), copy(s1))[1]
         s4 = step!(copy(s1))
         @test s3.u[2:end-2,2:end-2] ≈ s4.u[2:end-2,2:end-2]
@@ -260,10 +260,7 @@ using NiLang.AD: GVar
         state0 = SeismicState(copy(c))
         gn = SeismicState(zero(c))
         gn.u[45,45] = 1.0
-        g_tv, log = treeverse(x->i_step!(zero(x), x)[1], backward_step, state0, gn; δ=20, N=nstep, f_inplace=true)
-        @test isapprox(g_nilang, g_tv.c; rtol=1e-2, atol=1e-8)
-        @show maximum(abs.(g_nilang - g_tv.c))
-        @show maximum(abs.(g_nilang))
-        @show maximum(abs.(g_tv.c))
+        g_tv, log = treeverse(x->i_step!(zero(x), x)[1], backward_step, state0, gn; δ=20, N=nstep-1, f_inplace=true)
+        @test isapprox(g_nilang, g_tv.c)
     end
 end
