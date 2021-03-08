@@ -1,4 +1,5 @@
-export treeverse
+using NiLang.AD
+export treeverse, treeverse_solve
 
 struct TreeverseLog
     fcalls::Vector{NTuple{4,Int}}  # τ, δ, function index f_i := s_{i-1} -> s_{i}, length should be `(2k-1)^n`
@@ -59,7 +60,7 @@ function treeverse!(f, gf, s::T, state::Dict{Int,T}, g, δ, τ, β, σ, ϕ, logg
     if σ > β
         δ -= 1
         # snapshot s
-        state[β] = s
+        state[β] = (f_inplace ? copy(s) : s)
         push!(logger.checkpoints, (τ, δ, logger.depth[], β))
         logger.peak_mem[] = max(logger.peak_mem[], length(state))
         for j=β:σ-1
@@ -70,7 +71,7 @@ function treeverse!(f, gf, s::T, state::Dict{Int,T}, g, δ, τ, β, σ, ϕ, logg
 
     κ = mid(δ, τ, σ, ϕ, δ)
     while τ>0 && κ < ϕ
-        g = treeverse!(f, gf, s, state, g, δ, τ, σ, κ, ϕ, logger, f_inplace)
+        g = treeverse!(f, gf, f_inplace ? copy(s) : s, state, g, δ, τ, σ, κ, ϕ, logger, f_inplace)
         τ -= 1
         ϕ = κ
         κ = mid(δ, τ, σ, ϕ, δ)
@@ -79,8 +80,8 @@ function treeverse!(f, gf, s::T, state::Dict{Int,T}, g, δ, τ, β, σ, ϕ, logg
     if ϕ-σ != 1
         error("treeverse fails!")
     end
-    q = s
-    s = f(f_inplace ? copy(s) : s)
+    q = f_inplace ? copy(s) : s
+    s = f(s)
     g = gf(s, q, g)
     push!(logger.fcalls, (τ, δ, logger.depth[], ϕ))
     push!(logger.gcalls, (τ, δ, logger.depth[], ϕ))
@@ -99,10 +100,10 @@ function treeverse_step!(s, param, srci, srcj, srcv, c)
     return s2
 end
 
-function treeverse_grad(y, x, g, param, srci, srcj, srcv, c)
+function treeverse_grad(y, x, g, param, srci, srcj, srcv, gsrcv, c, gc)
     gt = SeismicState([GVar(getfield(y, field), getfield(g, field)) for field in fieldnames(SeismicState)[1:end-1]]..., y.step)
-    _, gs, _, _, _, gv, gc = (~bennett_step!)(gt, GVar(x), param, srci, srcj, GVar(srcv), GVar(c))
-    NiLang.AD.grad(gs)
+    _, gs, _, _, _, gv, gc2 = (~bennett_step!)(gt, GVar(x), param, srci, srcj, GVar(srcv, gsrcv), GVar(c, gc))
+    (grad(gs), grad(gv), grad(gc2))
 end
 
 """
@@ -114,6 +115,6 @@ end
 """
 function treeverse_solve(s0, gn; param, srci, srcj, srcv, c, N, δ=20, logger=TreeverseLog())
     treeverse(x->treeverse_step!(x, param, srci, srcj, srcv, c),
-        (y,x,g)->treeverse_grad(y, x, g, param, srci, srcj, srcv, c),
-        state0, gn; δ=δ, N=N, f_inplace=true)
+        (y,x,g)->treeverse_grad(y, x, g[1], param, srci, srcj, srcv, g[2], c, g[3]),
+        copy(s0), gn; δ=δ, N=N, f_inplace=true, logger=logger)
 end

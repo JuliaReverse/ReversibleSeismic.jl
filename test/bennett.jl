@@ -34,7 +34,7 @@ using Test
         bennett((@skip! step), y, x, param, srci, srcj, srcv, c; kwargs...)
         out += y.u[srci, srcj]
     end
-    _,_,_,gx,_,_,_,_,gc = NiLang.AD.gradient(loss, (0.0, bennett_step!, zero(x), copy(x), param, srci, srcj, srcv, copy(c)); iloss=1, k=k, N=N)
+    _,_,_,gx,_,_,_,gsrcv,gc = NiLang.AD.gradient(loss, (0.0, bennett_step!, zero(x), copy(x), param, srci, srcj, srcv, copy(c)); iloss=1, k=k, N=N)
     x_last_2 = NiLang.direct_emulate(bennett_step!, (x2=copy(x); x2.u[srci, srcj]+=1e-5; x2), param, srci, srcj, srcv, copy(c); N=N)
     @test gx.u[srci, srcj] ≈ (x_last_2.u[srci, srcj] - x_last.u[srci, srcj])/1e-5
     x_last_3 = NiLang.direct_emulate(bennett_step!, copy(x), param, srci, srcj, srcv, (c2=copy(c); c2[srci, srcj]+=1e-5; c2); N=N)

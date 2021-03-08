@@ -146,7 +146,7 @@ using NiLang.AD: GVar
         for N in [20, 120, 126]
             g_fd = ForwardDiff.gradient(x->rk4(lorentz, P3(x...), nothing; t0=0.0, Δt=3e-3, Nt=N)[end].x, [x0.x, x0.y, x0.z])
             g = (0.0, P3(1.0, 0.0, 0.0))
-            g_tv, log = treeverse(step_fun, backward, (0.0, x0), g; δ=4, N=N)
+            g_tv = treeverse(step_fun, backward, (0.0, x0), g; δ=4, N=N)
             @test g_fd ≈ [g_tv[2].x, g_tv[2].y, g_tv[2].z]
         end
     end
@@ -172,7 +172,8 @@ using NiLang.AD: GVar
         τ=2
         nsteps = binomial(τ+δ, τ)
         # directsolve
-        g, log = treeverse(step, ((a,b,c)->c+1), FT.(x), 0; N=nsteps, δ=δ)
+        log = ReversibleSeismic.TreeverseLog()
+        g = treeverse(step, ((a,b,c)->c+1), FT.(x), 0; N=nsteps, δ=δ, logger=log)
         @test g == nsteps
         @test log.peak_mem[] == 3
         @test length(log.fcalls) == 2*nsteps+5
@@ -181,12 +182,12 @@ using NiLang.AD: GVar
 
     @testset "treeverse gradient" begin
         nx = ny = 50
-        nstep = 1000
+        N = 1000
         c = 1000*ones(nx+2, ny+2)
 
         # gradient
         param = AcousticPropagatorParams(nx=size(c,1)-2, ny=size(c,2)-2,
-            Rcoef=0.2, dx=20.0, dy=20.0, dt=0.05, nstep=nstep)
+            Rcoef=0.2, dx=20.0, dy=20.0, dt=0.05, nstep=N)
         srci = size(c, 1) ÷ 2 - 1
         srcj = size(c, 2) ÷ 2 - 1
         srcv = Ricker(param, 100.0, 500.0)
@@ -199,57 +200,35 @@ using NiLang.AD: GVar
 
         function getnilanggrad(c::AbstractMatrix{T}) where T
             c = copy(c)
-            tu = zeros(T, size(c)..., nstep+1)
-            tφ = zeros(T, size(c)..., nstep+1)
-            tψ = zeros(T, size(c)..., nstep+1)
-            NiLang.AD.gradient(Val(1), i_loss!, (0.0, param, srci, srcj, srcv, c, tu, tφ, tψ))[end-3]
+            tu = zeros(T, size(c)..., N+1)
+            tφ = zeros(T, size(c)..., N+1)
+            tψ = zeros(T, size(c)..., N+1)
+            res = NiLang.AD.gradient(Val(1), i_loss!, (0.0, param, srci, srcj, srcv, c, tu, tφ, tψ))
+            res[end-2], res[end-4], res[end-3]
         end
 
-        function step!(s)
-            unext = zero(s.u)
-            ReversibleSeismic.one_step!(param, unext, s.u, s.upre, s.φ, s.ψ, param.Σx, param.Σy, s.c)
-            s2 = SeismicState(s.u, unext, s.φ, s.ψ, s.c, s.step+1)
-            s2.u[srci, srcj] += srcv[s2.step]*param.DELTAT^2
-            return s2
-        end
-
-        @i function i_step!(s2, s)
-            @routine begin
-                d2 ← zero(param.DELTAT)
-                d2 += param.DELTAT^2
-            end
-            s2.upre .+= s.u
-            s2.c .+= s.c
-            ReversibleSeismic.i_one_step!(param, s2.u, s2.upre, s.upre,
-                s2.φ, s.φ, s2.ψ, s.ψ, s2.c)
-            s2.step += 1 + s.step
-            s2.u[srci, srcj] += srcv[s2.step]* d2
-            ~@routine
-        end
-
-        s1 = SeismicState([randn(nx+2,ny+2) for i=1:5]..., 2)
-        s3 = i_step!(zero(s1), copy(s1))[1]
-        s4 = step!(copy(s1))
+        s1 = ReversibleSeismic.SeismicState([randn(nx+2,ny+2) for i=1:4]..., 2)
+        s3 = ReversibleSeismic.bennett_step!(zero(s1), copy(s1), param, srci, srcj, srcv, c)[1]
+        s4 = ReversibleSeismic.treeverse_step!(copy(s1), param, srci, srcj, srcv, c)
         @test s3.u[2:end-2,2:end-2] ≈ s4.u[2:end-2,2:end-2]
         @test s3.upre[2:end-2,2:end-2] ≈ s4.upre[2:end-2,2:end-2]
         @test s3.φ[2:end-2,2:end-2] ≈ s4.φ[2:end-2,2:end-2]
         @test s3.ψ[2:end-2,2:end-2] ≈ s4.ψ[2:end-2,2:end-2]
-        @test s3.c ≈ s4.c
         @test s3.step ≈ s4.step
 
-        function backward_step(y, x, g)
-            gt = SeismicState([GVar(getfield(y, field), getfield(g, field)) for field in fieldnames(SeismicState)[1:end-1]]..., y.step)
-            _, gs = (~i_step!)(gt, GVar(x))
-            NiLang.AD.grad(gs)
-        end
-        g_nilang = getnilanggrad(c)
-        state0 = SeismicState(copy(c))
-        gn = SeismicState(zero(c))
+        g_nilang_x, g_nilang_srcv, g_nilang_c = getnilanggrad(copy(c))
+        s0 = ReversibleSeismic.SeismicState(Float64, nx, ny)
+        gn = ReversibleSeismic.SeismicState(Float64, nx, ny)
         gn.u[45,45] = 1.0
         log = ReversibleSeismic.TreeverseLog()
-        g_tv = treeverse_solve(state0, gn;
-                    param=param, c=c, srci=srci, srcj=srcj,
-                    srcv=srcv, δ=20, N=nstep-1, f_inplace=true, logger=log)
-        @test isapprox(g_nilang, g_tv.c)
+        g_tv_x, g_tv_srcv, g_tv_c = treeverse_solve(s0, (gn, zero(srcv), zero(c));
+                    param=param, c=copy(c), srci=srci, srcj=srcj,
+                    srcv=srcv, δ=50, N=N-1, logger=log)
+        @show length(log.fcalls)
+        @show length(log.gcalls)
+        @test isapprox(g_nilang_srcv, g_tv_srcv)
+        @test isapprox(g_nilang_c, g_tv_c)
+        @test maximum(g_nilang_c) ≈ maximum(g_tv_c)
+        @test g_nilang_x[:,:,2] ≈ g_tv_x.u
     end
 end
