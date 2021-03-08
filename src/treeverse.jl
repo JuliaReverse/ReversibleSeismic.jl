@@ -39,19 +39,19 @@ Positional arguments
 Keyword arguments
 * `δ`, the number of checkpoints,
 * `N`, the number of time steps,
-* `τ`, the number of sweeps, it is chosen as the smallest integer that `binomial(τ+δ, τ) >= N` by default.
-* `f_inplace`, whether `f` is inplace.
+* `τ`, the number of sweeps, it is chosen as the smallest integer that `binomial(τ+δ, τ) >= N` by default,
+* `f_inplace = false`, whether `f` is inplace,
+* `logger = TreeverseLog()`, the logger.
 
 Ref: https://www.tandfonline.com/doi/abs/10.1080/10556789208805505
 """
-function treeverse(f, gf, s::T, g; δ, N, τ=binomial_fit(N,δ), f_inplace=false) where T
+function treeverse(f, gf, s::T, g; δ, N, τ=binomial_fit(N,δ), f_inplace=false, logger = TreeverseLog()) where T
     state = Dict{Int,typeof(s)}()
     if N > binomial(τ+δ, τ)
         error("please input a larger `τ` and `δ` so that `binomial(τ+δ, τ) >= N`!")
     end
-    logger = TreeverseLog()
     g = treeverse!(f, gf, s, state, g, δ, τ, 0, 0, N, logger, f_inplace)
-    return g, logger
+    return g
 end
 
 function treeverse!(f, gf, s::T, state::Dict{Int,T}, g, δ, τ, β, σ, ϕ, logger, f_inplace) where T
@@ -89,4 +89,31 @@ function treeverse!(f, gf, s::T, state::Dict{Int,T}, g, δ, τ, β, σ, ϕ, logg
         s = pop!(state, β)
     end
     return g
+end
+
+function treeverse_step!(s, param, srci, srcj, srcv, c)
+    unext = zero(s.u)
+    ReversibleSeismic.one_step!(param, unext, s.u, s.upre, s.φ, s.ψ, param.Σx, param.Σy, c)
+    s2 = SeismicState(s.u, unext, s.φ, s.ψ, s.step+1)
+    s2.u[srci, srcj] += srcv[s2.step]*param.DELTAT^2
+    return s2
+end
+
+function treeverse_grad(y, x, g, param, srci, srcj, srcv, c)
+    gt = SeismicState([GVar(getfield(y, field), getfield(g, field)) for field in fieldnames(SeismicState)[1:end-1]]..., y.step)
+    _, gs, _, _, _, gv, gc = (~bennett_step!)(gt, GVar(x), param, srci, srcj, GVar(srcv), GVar(c))
+    NiLang.AD.grad(gs)
+end
+
+"""
+    treeverse_solve(s0, gn; N, δ=20, logger=TreeverseLog())
+
+* `s0` is the initial state,
+* `gn` is the gradient defined on the last state,
+* `N` is the number of steps.
+"""
+function treeverse_solve(s0, gn; param, srci, srcj, srcv, c, N, δ=20, logger=TreeverseLog())
+    treeverse(x->treeverse_step!(x, param, srci, srcj, srcv, c),
+        (y,x,g)->treeverse_grad(y, x, g, param, srci, srcj, srcv, c),
+        state0, gn; δ=δ, N=N, f_inplace=true)
 end

@@ -205,20 +205,6 @@ using NiLang.AD: GVar
             NiLang.AD.gradient(Val(1), i_loss!, (0.0, param, srci, srcj, srcv, c, tu, tφ, tψ))[end-3]
         end
 
-        struct SeismicState{T}
-            upre::Matrix{T}
-            u::Matrix{T}
-            φ::Matrix{T}
-            ψ::Matrix{T}
-            c::Matrix{T}
-            step::Int
-        end
-        function SeismicState(c::Matrix{T}) where T
-            SeismicState(zero(c), zero(c), zero(c), zero(c), c, 0)
-        end
-        Base.copy(s::SeismicState) = SeismicState(copy(s.upre), copy(s.u), copy(s.φ), copy(s.ψ), copy(s.c), s.step)
-        Base.zero(s::SeismicState) = SeismicState(zero(s.upre), zero(s.u), zero(s.φ), zero(s.ψ), zero(s.c), 0)
-
         function step!(s)
             unext = zero(s.u)
             ReversibleSeismic.one_step!(param, unext, s.u, s.upre, s.φ, s.ψ, param.Σx, param.Σy, s.c)
@@ -260,7 +246,10 @@ using NiLang.AD: GVar
         state0 = SeismicState(copy(c))
         gn = SeismicState(zero(c))
         gn.u[45,45] = 1.0
-        g_tv, log = treeverse(x->i_step!(zero(x), x)[1], backward_step, state0, gn; δ=20, N=nstep-1, f_inplace=true)
+        log = ReversibleSeismic.TreeverseLog()
+        g_tv = treeverse_solve(state0, gn;
+                    param=param, c=c, srci=srci, srcj=srcj,
+                    srcv=srcv, δ=20, N=nstep-1, f_inplace=true, logger=log)
         @test isapprox(g_nilang, g_tv.c)
     end
 end
