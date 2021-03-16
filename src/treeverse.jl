@@ -1,14 +1,21 @@
 using NiLang.AD
 export treeverse, treeverse_solve
 
+struct TreeverseAction
+    action::Symbol
+    τ::Int
+    δ::Int
+    step::Int
+    depth::Int
+end
+
 struct TreeverseLog
-    fcalls::Vector{NTuple{4,Int}}  # τ, δ, function index f_i := s_{i-1} -> s_{i}, length should be `(2k-1)^n`
-    gcalls::Vector{NTuple{4,Int}}  # τ, δ, function index
-    checkpoints::Vector{NTuple{4,Int}}  # τ, δ, state index
+    actions::Vector{TreeverseAction}
     depth::Base.RefValue{Int}
     peak_mem::Base.RefValue{Int}  # should be `n*(k-1)+2`
 end
-TreeverseLog() = TreeverseLog(NTuple{4,Int}[], NTuple{4,Int}[], NTuple{4,Int}[], Ref(0), Ref(0))
+TreeverseLog() = TreeverseLog(TreeverseAction[], Ref(0), Ref(0))
+Base.push!(tlog::TreeverseLog, args...) = push!(tlog.actions, TreeverseAction(args..., tlog.depth[]))
 
 function binomial_fit(N::Int, δ::Int)
     τ = 1
@@ -27,13 +34,13 @@ function mid(δ, τ, σ, ϕ, d)
 end
 
 """
-    treeverse!(f, gf, s, g; δ, N, τ=binomial_fit(N,δ), f_inplace=true)
+    treeverse(f, gf, s, g; δ, N, τ=binomial_fit(N,δ), f_inplace=true, logger = TreeverseLog())
 
 Treeverse algorithm for back-propagating a program memory efficiently.
 
 Positional arguments
 * `f`, the step function that ``s_{i+1} = f(s_i)``,
-* `gf`, the single step gradient function that ``g_i = gf(s_{i+1}, s_i, g_{i+1})``,
+* `gf`, the single step gradient function that ``g_i = gf(s_i, g_{i+1})``,
 * `s`, the initial state ``s_0``,
 * `g`, the gradient for the output state ``g_n``,
 
@@ -61,11 +68,11 @@ function treeverse!(f, gf, s::T, state::Dict{Int,T}, g, δ, τ, β, σ, ϕ, logg
         δ -= 1
         # snapshot s
         state[β] = (f_inplace ? copy(s) : s)
-        push!(logger.checkpoints, (τ, δ, logger.depth[], β))
+        push!(logger, :store, τ, δ, β)
         logger.peak_mem[] = max(logger.peak_mem[], length(state))
         for j=β:σ-1
             s = f(s)
-            push!(logger.fcalls, (τ, δ, logger.depth[], j+1))
+            push!(logger, :call, τ, δ, j)
         end
     end
 
@@ -80,14 +87,12 @@ function treeverse!(f, gf, s::T, state::Dict{Int,T}, g, δ, τ, β, σ, ϕ, logg
     if ϕ-σ != 1
         error("treeverse fails!")
     end
-    q = f_inplace ? copy(s) : s
-    s = f(s)
-    g = gf(s, q, g)
-    push!(logger.fcalls, (τ, δ, logger.depth[], ϕ))
-    push!(logger.gcalls, (τ, δ, logger.depth[], ϕ))
+    g = gf(s, g)
+    push!(logger, :grad, τ, δ, σ)
     if σ>β
         # retrieve s
-        s = pop!(state, β)
+        pop!(state, β)
+        push!(logger, :fetch, τ, δ, β)
     end
     return g
 end
@@ -100,7 +105,8 @@ function treeverse_step!(s, param, srci, srcj, srcv, c)
     return s2
 end
 
-function treeverse_grad(y, x, g, param, srci, srcj, srcv, gsrcv, c, gc)
+function treeverse_grad(x, g, param, srci, srcj, srcv, gsrcv, c, gc)
+    y = treeverse_step!(copy(x), param, srci, srcj, srcv, c)
     gt = SeismicState([GVar(getfield(y, field), getfield(g, field)) for field in fieldnames(SeismicState)[1:end-1]]..., y.step)
     _, gs, _, _, _, gv, gc2 = (~bennett_step!)(gt, GVar(x), param, srci, srcj, GVar(srcv, gsrcv), GVar(c, gc))
     (grad(gs), grad(gv), grad(gc2))
@@ -115,6 +121,6 @@ end
 """
 function treeverse_solve(s0, gn; param, srci, srcj, srcv, c, N, δ=20, logger=TreeverseLog())
     treeverse(x->treeverse_step!(x, param, srci, srcj, srcv, c),
-        (y,x,g)->treeverse_grad(y, x, g[1], param, srci, srcj, srcv, g[2], c, g[3]),
+        (x,g)->treeverse_grad(x, g[1], param, srci, srcj, srcv, g[2], c, g[3]),
         copy(s0), gn; δ=δ, N=N, f_inplace=true, logger=logger)
 end

@@ -133,7 +133,8 @@ using NiLang.AD: GVar
         i_step_fun((0.0, zero(x[2])), x)[1]
     end
 
-    function backward(y, x, g)
+    function backward(x, g)
+        y = step_fun(x)
         _, gs = (~i_step_fun)(
             (GVar(y[1], g[1]), P3(GVar(y[2].x, g[2].x), GVar(y[2].y, g[2].y), GVar(y[2].z,g[2].z))),
             (GVar(x[1]), GVar(x[2])))
@@ -173,11 +174,11 @@ using NiLang.AD: GVar
         nsteps = binomial(τ+δ, τ)
         # directsolve
         log = ReversibleSeismic.TreeverseLog()
-        g = treeverse(step, ((a,b,c)->c+1), FT.(x), 0; N=nsteps, δ=δ, logger=log)
+        g = treeverse(step, ((b,c)->c+1), FT.(x), 0; N=nsteps, δ=δ, logger=log)
         @test g == nsteps
         @test log.peak_mem[] == 3
-        @test length(log.fcalls) == 2*nsteps+5
-        @test length(log.gcalls) == nsteps
+        @test count(x->x.action==:call, log.actions) == 2*nsteps-5
+        @test count(x->x.action==:grad, log.actions) == nsteps
     end
 
     @testset "treeverse gradient" begin
@@ -224,8 +225,6 @@ using NiLang.AD: GVar
         g_tv_x, g_tv_srcv, g_tv_c = treeverse_solve(s0, (gn, zero(srcv), zero(c));
                     param=param, c=copy(c), srci=srci, srcj=srcj,
                     srcv=srcv, δ=50, N=N-1, logger=log)
-        @show length(log.fcalls)
-        @show length(log.gcalls)
         @test isapprox(g_nilang_srcv, g_tv_srcv)
         @test isapprox(g_nilang_c, g_tv_c)
         @test maximum(g_nilang_c) ≈ maximum(g_tv_c)
