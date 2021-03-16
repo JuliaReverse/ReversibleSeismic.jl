@@ -4,6 +4,7 @@ using KernelAbstractions
 using NiLang
 using NiLang.AD
 using KernelAbstractions.CUDA
+CUDA.allowscalar(true)
 
 """
 the reversible loss

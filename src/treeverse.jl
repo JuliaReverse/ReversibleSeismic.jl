@@ -17,6 +17,15 @@ end
 TreeverseLog() = TreeverseLog(TreeverseAction[], Ref(0), Ref(0))
 Base.push!(tlog::TreeverseLog, args...) = push!(tlog.actions, TreeverseAction(args..., tlog.depth[]))
 
+Base.show(io::IO, ::MIME"text/plain", logger::TreeverseLog) = Base.show(io, logger)
+function Base.show(io::IO, logger::TreeverseLog)
+    print(io, """Treeverse log
+| peak memory usage = $(logger.peak_mem[])
+| number of function calls = $(count(x->x.action==:call, logger.actions))
+| number of gradient calls = $(count(x->x.action==:grad, logger.actions))
+| number of stack push/pop = $(count(x->x.action==:store, logger.actions))/$(count(x->x.action==:fetch, logger.actions))""")
+end
+
 function binomial_fit(N::Int, δ::Int)
     τ = 1
     while N > binomial(τ+δ, τ)
@@ -113,14 +122,13 @@ function treeverse_grad(x, g, param, srci, srcj, srcv, gsrcv, c, gc)
 end
 
 """
-    treeverse_solve(s0, gn; N, δ=20, logger=TreeverseLog())
+    treeverse_solve(s0, gn; param, srci, srcj, srcv, c, δ=20, logger=TreeverseLog())
 
 * `s0` is the initial state,
 * `gn` is the gradient defined on the last state,
-* `N` is the number of steps.
 """
-function treeverse_solve(s0, gn; param, srci, srcj, srcv, c, N, δ=20, logger=TreeverseLog())
+function treeverse_solve(s0, gn; param, srci, srcj, srcv, c, δ=20, logger=TreeverseLog())
     treeverse(x->treeverse_step!(x, param, srci, srcj, srcv, c),
         (x,g)->treeverse_grad(x, g[1], param, srci, srcj, srcv, g[2], c, g[3]),
-        copy(s0), gn; δ=δ, N=N, f_inplace=true, logger=logger)
+        copy(s0), gn; δ=δ, N=param.NSTEP-1, f_inplace=true, logger=logger)
 end

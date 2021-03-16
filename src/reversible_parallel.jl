@@ -96,6 +96,21 @@ end
     ~@routine
 end
 
+@i function i_one_step_parallel!(param::AcousticPropagatorParams, u, w, wold, φ, φ0, ψ, ψ0, c::AbstractMatrix{T}; device, nthread) where T
+    for (DI, DJ) in Base.Iterators.product((0,1,2), (0,1,2))
+        @launchkernel device nthread (param.NX÷3, param.NY÷3) i_one_step_kernel1!(
+            param.DELTAT, param.DELTAX, param.DELTAY, u, w, wold,
+            φ, φ0, ψ, ψ0, param.Σx, param.Σy, c,
+            Val(DI), Val(DJ))
+    end
+    for (DI, DJ) in Base.Iterators.product((0,1,2), (0,1,2))
+        @launchkernel device nthread (param.NX÷3, param.NY÷3) i_one_step_kernel2!(
+            param.DELTAT, param.DELTAX, param.DELTAY, u, w, wold,
+            φ, φ0, ψ, ψ0, param.Σx, param.Σy, c,
+            Val(DI), Val(DJ))
+    end
+end
+
 @i function i_solve_parallel!(param::AcousticPropagatorParams, srci::Int, srcj::Int,
             srcv::AbstractArray{T, 1}, c::AbstractArray{T, 2},
             tua::AbstractArray{T,3}, tφa::AbstractArray{T,3}, tψa::AbstractArray{T,3},
@@ -118,18 +133,9 @@ end
             tψa[:,:,2] .+= tψb[:,:,b]
             @safe CUDA.synchronize()  #! need to sync!
             for a = 3:size(tua, 3)
-                for (DI, DJ) in Base.Iterators.product((0,1,2), (0,1,2))
-                    @launchkernel device nthread (param.NX÷3, param.NY÷3) i_one_step_kernel1!(
-                        param.DELTAT, param.DELTAX, param.DELTAY, view(tua,:,:,a), view(tua,:,:,a-1), view(tua,:,:,a-2),
-                        view(tφa,:,:,a), view(tφa,:,:,a-1), view(tψa,:,:,a), view(tψa,:,:,a-1), param.Σx, param.Σy, c,
-                        Val(DI), Val(DJ))
-                end
-                for (DI, DJ) in Base.Iterators.product((0,1,2), (0,1,2))
-                    @launchkernel device nthread (param.NX÷3, param.NY÷3) i_one_step_kernel2!(
-                        param.DELTAT, param.DELTAX, param.DELTAY, view(tua,:,:,a), view(tua,:,:,a-1), view(tua,:,:,a-2),
-                        view(tφa,:,:,a), view(tφa,:,:,a-1), view(tψa,:,:,a), view(tψa,:,:,a-1), param.Σx, param.Σy, c,
-                        Val(DI), Val(DJ))
-                end
+                i_one_step_parallel!(param, tua|>subarray(:,:,a), tua|>subarray(:,:,a-1), tua|>subarray(:,:,a-2),
+                        tφa|>subarray(:,:,a), tφa|>subarray(:,:,a-1), tψa|>subarray(:,:,a), tψa|>subarray(:,:,a-1), c;
+                        device=device, nthread=nthread)
                 tua[srci, srcj, a] += srcv[(b-1)*(size(tua,3)-2) + a] * d2
             end
         end

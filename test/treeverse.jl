@@ -224,7 +224,7 @@ using NiLang.AD: GVar
         log = ReversibleSeismic.TreeverseLog()
         g_tv_x, g_tv_srcv, g_tv_c = treeverse_solve(s0, (gn, zero(srcv), zero(c));
                     param=param, c=copy(c), srci=srci, srcj=srcj,
-                    srcv=srcv, δ=50, N=N-1, logger=log)
+                    srcv=srcv, δ=50, logger=log)
         @test isapprox(g_nilang_srcv, g_tv_srcv)
         @test isapprox(g_nilang_c, g_tv_c)
         @test maximum(g_nilang_c) ≈ maximum(g_tv_c)
