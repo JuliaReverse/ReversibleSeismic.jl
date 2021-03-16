@@ -1,5 +1,6 @@
 using NiLang.AD
 export bennett_step!, bennett_solve
+export SeismicState
 
 struct SeismicState{MT}
     upre::MT

@@ -1,4 +1,5 @@
 using .KernelAbstractions
+using .KernelAbstractions.CUDA
 
 export i_solve_parallel!
 
@@ -11,6 +12,42 @@ function print_backward(str="")
     str
 end
 @dual print_forward print_backward
+
+NiLangCore.assign_ex(x, y; invcheck) = @show (x, y)
+export @iforcescalar
+macro iforcescalar(ex)
+    x = gensym()
+    esc(quote
+        $x ← $(CUDA.GPUArrays).ScalarAllowed
+        $(NiLang.SWAP)($(CUDA.GPUArrays).scalar_allowed[], $x)
+        $(ex)
+        $(NiLang.SWAP)($(CUDA.GPUArrays).scalar_allowed[], $x)
+        $x → $(CUDA.GPUArrays).ScalarAllowed
+    end)
+end
+
+export @forcescalar
+macro forcescalar(ex)
+    quote
+        x = $CUDA.GPUArrays.scalar_allowed[]
+        $CUDA.allowscalar(true)
+        $(esc(ex))
+        $CUDA.GPUArrays.scalar_allowed[] = x
+    end
+end
+
+@i function addkernel(target, source)
+    @invcheckoff b ← (blockIdx().x-1) * blockDim().x + threadIdx().x
+    @invcheckoff if (b <= length(target), ~)
+        @inbounds target[b] += source[b]
+    end
+    @invcheckoff b → (blockIdx().x-1) * blockDim().x + threadIdx().x
+end
+
+@i function :(+=)(identity)(target::CuArray, source::CuArray)
+    @safe @assert length(target) == length(source)
+    @cuda threads=256 blocks=ceil(Int,length(target)/256) addkernel(target, source)
+end
 
 # `DI/DJ ~ [-1, 0, 1]`, number of threads should be `(nx÷3) * (ny÷3)`.
 @i @kernel function i_one_step_kernel1!(Δt, hx, hy, u!, w, wold, φ!, φ0, ψ!, ψ0, σ, τ, c::AbstractMatrix{T}, vi::Val{DI}, vj::Val{DJ}) where {T,DI,DJ}
@@ -96,15 +133,15 @@ end
     ~@routine
 end
 
-@i function i_one_step_parallel!(param::AcousticPropagatorParams, u, w, wold, φ, φ0, ψ, ψ0, c::AbstractMatrix{T}; device, nthread) where T
+@i function i_one_step_parallel!(param::AcousticPropagatorParams, u, w, wold, φ, φ0, ψ, ψ0, c::AbstractMatrix{T}; device, nthreads) where T
     for (DI, DJ) in Base.Iterators.product((0,1,2), (0,1,2))
-        @launchkernel device nthread (param.NX÷3, param.NY÷3) i_one_step_kernel1!(
+        @launchkernel device nthreads (param.NX÷3, param.NY÷3) i_one_step_kernel1!(
             param.DELTAT, param.DELTAX, param.DELTAY, u, w, wold,
             φ, φ0, ψ, ψ0, param.Σx, param.Σy, c,
             Val(DI), Val(DJ))
     end
     for (DI, DJ) in Base.Iterators.product((0,1,2), (0,1,2))
-        @launchkernel device nthread (param.NX÷3, param.NY÷3) i_one_step_kernel2!(
+        @launchkernel device nthreads (param.NX÷3, param.NY÷3) i_one_step_kernel2!(
             param.DELTAT, param.DELTAX, param.DELTAY, u, w, wold,
             φ, φ0, ψ, ψ0, param.Σx, param.Σy, c,
             Val(DI), Val(DJ))
@@ -115,7 +152,7 @@ end
             srcv::AbstractArray{T, 1}, c::AbstractArray{T, 2},
             tua::AbstractArray{T,3}, tφa::AbstractArray{T,3}, tψa::AbstractArray{T,3},
             tub::AbstractArray{T,3}, tφb::AbstractArray{T,3}, tψb::AbstractArray{T,3};
-            device, nthread::Int) where T
+            device, nthreads::Int) where T
     @safe @assert param.NX%3 == 0 && param.NY%3 == 0 "NX and NY must be multiple of 3, got $(param.NX) and $(param.NY)"
     @safe @assert size(tψa)[1] == param.NX+2 && size(tψa)[2] == param.NY+2
     @safe @assert size(tψa) == size(tφa) == size(tua)
@@ -135,8 +172,8 @@ end
             for a = 3:size(tua, 3)
                 i_one_step_parallel!(param, tua|>subarray(:,:,a), tua|>subarray(:,:,a-1), tua|>subarray(:,:,a-2),
                         tφa|>subarray(:,:,a), tφa|>subarray(:,:,a-1), tψa|>subarray(:,:,a), tψa|>subarray(:,:,a-1), c;
-                        device=device, nthread=nthread)
-                tua[srci, srcj, a] += srcv[(b-1)*(size(tua,3)-2) + a] * d2
+                        device=device, nthreads=nthreads)
+                @iforcescalar tua[srci, srcj, a] += srcv[(b-1)*(size(tua,3)-2) + a] * d2
             end
         end
         # copy the stack top of A to B
@@ -151,4 +188,23 @@ end
         @safe GC.gc()
     end
     ~@routine
+end
+
+@i function bennett_step!(dest::T, src::T, param::AcousticPropagatorParams, srci, srcj, srcv, c; nthreads=256) where T<:SeismicState{<:CuArray}
+    @routine begin
+        d2 ← zero(param.DELTAT)
+        d2 += param.DELTAT^2
+    end
+    dest.upre += src.u
+    dest.step += src.step + 1
+    @safe CUDA.synchronize()
+    i_one_step_parallel!(param, dest.u, src.u, src.upre,
+        dest.φ, src.φ, dest.ψ, src.ψ, c; device=CUDADevice(), nthreads=nthreads)
+    @iforcescalar dest.u[srci, srcj] += srcv[dest.step] * d2
+    ~@routine
+end
+
+export CuSeismicState
+function CuSeismicState(::Type{T}, nx::Int, ny::Int) where T
+    SeismicState([CUDA.zeros(T, nx+2, ny+2) for i=1:4]..., 0)
 end
