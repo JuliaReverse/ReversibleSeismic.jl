@@ -71,8 +71,9 @@ macro forcescalar(ex)
     quote
         x = $CUDA.GPUArrays.scalar_allowed[]
         $CUDA.allowscalar(true)
-        $(esc(ex))
+        res = $(esc(ex))
         $CUDA.GPUArrays.scalar_allowed[] = x
+        res
     end
 end
 

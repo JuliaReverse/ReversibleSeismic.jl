@@ -9,7 +9,7 @@ the reversible loss
 @i function i_loss_parallel!(out::T, param, srci, srcj, srcv::AbstractVector{T}, c::AbstractMatrix{T},
           tua::AbstractArray{T,3}, tφa::AbstractArray{T,3}, tψa::AbstractArray{T,3},
           tub::AbstractArray{T,3}, tφb::AbstractArray{T,3}, tψb::AbstractArray{T,3}) where T
-     i_solve_parallel!(param, srci, srcj, srcv, c, tua, tφa, tψa, tub, tφb, tψb; device=CPU(), nthread=2)
+     i_solve_parallel!(param, srci, srcj, srcv, c, tua, tφa, tψa, tub, tφb, tψb; device=CPU(), nthreads=2)
      for i=1:length(tub)
           out += tub[i] ^ 2
      end

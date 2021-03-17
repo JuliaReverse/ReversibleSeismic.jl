@@ -5,10 +5,10 @@ using KernelAbstractions.CUDA
 @testset "sum instr" begin
     out = 0.4
     x = randn(5)
-    @test check_grad(PlusEq(sum), (out, abs2, x); iloss=1)
-    @test check_grad(MinusEq(sum), (out, abs2, x); iloss=1)
-    @test check_grad(PlusEq(sum), (out, abs2, x |> CuArray); iloss=1)
-    @test check_grad(MinusEq(sum), (out, abs2, x |> CuArray); iloss=1)
+    @test @forcescalar check_grad(PlusEq(sum), (out, abs2, x); iloss=1)
+    @test @forcescalar check_grad(MinusEq(sum), (out, abs2, x); iloss=1)
+    @test @forcescalar check_grad(PlusEq(sum), (out, abs2, x |> CuArray); iloss=1)
+    @test @forcescalar check_grad(MinusEq(sum), (out, abs2, x |> CuArray); iloss=1)
 end
 
 
@@ -23,8 +23,8 @@ end
     @test out_ ≈ 0.4
     @test x_ ≈ x
     @test y_ ≈ y
-    @test check_grad(f, (0.4, y, x); iloss=1)
-    @test check_grad(~f, (0.4, y, x); iloss=1)
+    @test @forcescalar check_grad(f, (0.4, y, x); iloss=1)
+    @test @forcescalar check_grad(~f, (0.4, y, x); iloss=1)
 
     @i function g(out, x, y)
         x[1:3] .+= y[1:3]
@@ -34,6 +34,6 @@ end
     @test out_ ≈ 0.4
     @test x_ ≈ x
     @test y_ ≈ y
-    @test check_grad(g, (0.4, y, x); iloss=1)
+    @test @forcescalar check_grad(g, (0.4, y, x); iloss=1)
 end
 
