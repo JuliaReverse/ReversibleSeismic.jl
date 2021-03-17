@@ -52,7 +52,7 @@ function loss_gpu(c::AbstractMatrix{T}; na, nb) where T
     i_loss_gpu!(loss, param, srci, srcj, srcv, CuArray(c), tua, tφa, tψa, tub, tφb, tψb)[1]
 end
 
-function loss_bennett_gpu(c::AbstractMatrix{T}; nstep, usecuda=true, usetreeverse=false) where T
+function loss_bennett_gpu(c::AbstractMatrix{T}; nstep, usecuda=true) where T
     nx = size(c, 1) - 2
     ny = size(c, 2) - 2
     param = AcousticPropagatorParams(nx=nx, ny=ny,
@@ -69,16 +69,7 @@ function loss_bennett_gpu(c::AbstractMatrix{T}; nstep, usecuda=true, usetreevers
         state = Dict(1=>SeismicState(Float64, nx, ny))
         c = copy(c)
     end
-    if usetreeverse
-        function gn(sn)
-            g = zero(sn)
-            g.u .+= 2 .* sn.u
-            return g
-        end
-        treeverse_solve(state[1], gn; param=param, srci=srci, srcj=srcj, srcv=srcv, c=c)[1]
-    else
-        i_loss_bennett_gpu!(0.0, state, param, srci, srcj, srcv, c)[1]
-    end
+    i_loss_bennett_gpu!(0.0, state, param, srci, srcj, srcv, c)[1]
 end
 
 @testset "loss" begin
@@ -155,6 +146,23 @@ function getgrad_bennett_gpu(c::AbstractMatrix{T}; nstep) where T
     NiLang.AD.gradient(Val(1), i_loss_bennett_gpu!, (0.0, state, param, srci, srcj, srcv, c))[7]
 end
 
+function getgrad_treeverse_gpu(c::AbstractMatrix{T}; nstep) where T
+    nx, ny = size(c) .- 2
+    param = AcousticPropagatorParams(nx=size(c,1)-2, ny=size(c,2)-2,
+          Rcoef=0.2, dx=20.0, dy=20.0, dt=0.05, nstep=nstep) |> cu
+    c = c |> CuArray
+    srci = size(c, 1) ÷ 2 - 1
+    srcj = size(c, 2) ÷ 2 - 1
+    srcv = Ricker(param, 100.0, 500.0)
+    s0 = CuSeismicState(Float64, nx, ny)
+    function gn(sn)
+        g = zero(sn)
+        g.u .+= 2 .* sn.u
+        return (g, zero(srcv), zero(c))
+    end
+    treeverse_solve(s0, gn; param=param, srci=srci, srcj=srcj, srcv=srcv, c=c)[3]
+end
+
 """
 obtain gradients numerically, for gradient checking.
 """
@@ -177,7 +185,9 @@ end
     c = 1000*ones(Float64, nx+2, ny+2)
     g1 = Array(getgrad_gpu(c; na=na, nb=nb))
     g2 = Array(getgrad_bennett_gpu(c; nstep=nstep))
+    g3 = Array(getgrad_treeverse_gpu(c; nstep=nstep))
     ng4545 = getngrad_gpu(c, 45, 45; nstep=nstep, δ=1e-3)
     @test isapprox(g1[45,45], ng4545; rtol=5e-2)
     @test isapprox(g2[45,45], ng4545; rtol=1e-2)
+    @test isapprox(g3[45,45], ng4545; rtol=1e-2)
 end

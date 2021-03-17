@@ -1,5 +1,5 @@
 using .KernelAbstractions: CUDA
-using .CUDA: CuArray
+using .CUDA: CuArray, @cuda
 using NiLang.AD: GVar
 
 export @iforcescalar, @forcescalar
@@ -29,27 +29,27 @@ function (_::PlusEq{typeof(sum)})(out!::GVar{T}, ::typeof(abs2), x::AbstractArra
     out!, abs2, x
 end
 
-#function apply_take1(f, args...)
-#    f(args...)[1]
-#end
+function apply_take1(f, args...)
+    f(args...)[1]
+end
 
-#function apply_take2(f, args...)
-    #f(args...)[2]
-#end
+function apply_take2(f, args...)
+    f(args...)[2]
+end
 
-#function apply_take3(f, args...)
-    #f(args...)[3]
-#end
+function apply_take3(f, args...)
+    f(args...)[3]
+end
 
-#function NiLangCore.ibcast(f, a::CuArray, b::CuArray)
-#    f, apply_take1.(f, a, b), apply_take2.(f, a, b)
-#end
+function NiLangCore.ibcast(f, a::CuArray, b::CuArray)
+    f, apply_take1.(f, a, b), apply_take2.(f, a, b)
+end
 
-#function NiLangCore.ibcast(f, a::CuArray, b::CuArray, c::CuArray)
-#    f, apply_take1.(f, a, b, c), apply_take2.(f, a, b, c), apply_take3.(f, a, b, c)
-#end
+function NiLangCore.ibcast(f, a::CuArray, b::CuArray, c::CuArray)
+    f, apply_take1.(f, a, b, c), apply_take2.(f, a, b, c), apply_take3.(f, a, b, c)
+end
 
-const CuSeismicState{MT} = SeismicState{MT<:CuMatrix{T}}
+const CuSeismicState{MT} = SeismicState{MT} where MT<:CuArray
 
 export CuSeismicState
 function CuSeismicState(::Type{T}, nx::Int, ny::Int) where T
