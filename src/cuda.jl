@@ -2,9 +2,9 @@ using .KernelAbstractions: CUDA
 using .CUDA: CuArray, @cuda
 using NiLang.AD: GVar
 
-export @iforcescalar, @forcescalar
+export @iforcescalar, @forcescalar, togpu
 
-function CUDA.cu(a::AcousticPropagatorParams{DIM}) where DIM
+function togpu(a::AcousticPropagatorParams{DIM}) where DIM
      AcousticPropagatorParams(a.NX, a.NY, a.NSTEP, a.DELTAX, a.DELTAY, a.DELTAT, CuArray(a.Σx), CuArray(a.Σy))
 end
 
@@ -55,6 +55,12 @@ export CuSeismicState
 function CuSeismicState(::Type{T}, nx::Int, ny::Int) where T
     SeismicState([CUDA.zeros(T, nx+2, ny+2) for i=1:4]..., 0)
 end
+
+function togpu(x::SeismicState)
+    SeismicState([CuArray(t) for t in [x.upre, x.u, x.φ, x.ψ]]..., 0)
+end
+
+togpu(x::AbstractArray) = CuArray(x)
 
 macro iforcescalar(ex)
     x = gensym()

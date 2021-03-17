@@ -35,7 +35,7 @@ function loss_gpu(c::AbstractMatrix{T}; na, nb) where T
     nx = size(c, 1) - 2
     ny = size(c, 2) - 2
     param = AcousticPropagatorParams(nx=nx, ny=ny,
-         Rcoef=0.2, dx=20.0, dy=20.0, dt=0.05, nstep=(na-2)*(nb-1)+2) |> cu
+         Rcoef=0.2, dx=20.0, dy=20.0, dt=0.05, nstep=(na-2)*(nb-1)+2) |> togpu
 
     tua = CUDA.zeros(T, nx+2, ny+2, na)
     tφa = CUDA.zeros(T, nx+2, ny+2, na)
@@ -63,7 +63,7 @@ function loss_bennett_gpu(c::AbstractMatrix{T}; nstep, usecuda=true) where T
 
     if usecuda
         state = Dict(1=>CuSeismicState(Float64, nx, ny))
-        param = cu(param)
+        param = togpu(param)
         c = CuArray(c)
     else
         state = Dict(1=>SeismicState(Float64, nx, ny))
@@ -94,14 +94,14 @@ end
     u = solve(param0, srci, srcj, copy(srcv0), Array(c0))[:,:,end]
     ls = sum(abs2, u)
 
-    loss = i_loss_gpu!(0.0, cu(param0), srci, srcj, copy(srcv0), copy(c0), copy(tua), copy(tφa), copy(tψa), copy(tub), copy(tφb), copy(tψb))[1]
+    loss = i_loss_gpu!(0.0, togpu(param0), srci, srcj, copy(srcv0), copy(c0), copy(tua), copy(tφa), copy(tψa), copy(tub), copy(tφb), copy(tψb))[1]
     @test isapprox(loss, ls; rtol=1e-2)
 
     param0 = AcousticPropagatorParams(nx=nx, ny=ny,
          Rcoef=0.2, dx=20.0, dy=20.0, dt=0.05, nstep=(na-2)*(nb-1)+2)
     s0 = CuSeismicState(Float64, nx, ny)
     state = Dict(1=>s0)
-    loss_bg = i_loss_bennett_gpu!(0.0, copy(state), cu(param0), srci, srcj, copy(srcv0), copy(c0); bennett_k=200)[1]
+    loss_bg = i_loss_bennett_gpu!(0.0, copy(state), togpu(param0), srci, srcj, copy(srcv0), copy(c0); bennett_k=200)[1]
 
     s0 = CuSeismicState(Float64, nx, ny)
     state = Dict(1=>s0)
@@ -116,7 +116,7 @@ obtain gradients with NiLang.AD
 function getgrad_gpu(c::AbstractMatrix{T}; na::Int, nb::Int) where T
     nx, ny = size(c) .- 2
     param = AcousticPropagatorParams(nx=size(c,1)-2, ny=size(c,2)-2,
-         Rcoef=0.2, dx=20.0, dy=20.0, dt=0.05, nstep=(na-2)*(nb-1)+2) |> cu
+         Rcoef=0.2, dx=20.0, dy=20.0, dt=0.05, nstep=(na-2)*(nb-1)+2) |> togpu
 
     c = c |> CuArray
     tua = CUDA.zeros(T, nx+2, ny+2, na)
@@ -136,7 +136,7 @@ end
 function getgrad_bennett_gpu(c::AbstractMatrix{T}; nstep) where T
     nx, ny = size(c) .- 2
     param = AcousticPropagatorParams(nx=size(c,1)-2, ny=size(c,2)-2,
-          Rcoef=0.2, dx=20.0, dy=20.0, dt=0.05, nstep=nstep) |> cu
+          Rcoef=0.2, dx=20.0, dy=20.0, dt=0.05, nstep=nstep) |> togpu
     c = c |> CuArray
     srci = size(c, 1) ÷ 2 - 1
     srcj = size(c, 2) ÷ 2 - 1
@@ -149,7 +149,7 @@ end
 function getgrad_treeverse_gpu(c::AbstractMatrix{T}; nstep) where T
     nx, ny = size(c) .- 2
     param = AcousticPropagatorParams(nx=size(c,1)-2, ny=size(c,2)-2,
-          Rcoef=0.2, dx=20.0, dy=20.0, dt=0.05, nstep=nstep) |> cu
+          Rcoef=0.2, dx=20.0, dy=20.0, dt=0.05, nstep=nstep) |> togpu
     c = c |> CuArray
     srci = size(c, 1) ÷ 2 - 1
     srcj = size(c, 2) ÷ 2 - 1

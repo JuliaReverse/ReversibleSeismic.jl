@@ -20,8 +20,8 @@ export i_solve_parallel!
         j ← inds[2]*3 + DJ - 1
     end
 
-    @routine @invcheckoff begin
-        @inbounds begin
+    @invcheckoff @inbounds if i<size(u!, 1) && j<size(u!,2)
+        @routine begin
             @zeros T σpτ σpτΔt_2 cΔt_hx2 cΔt_hy2 dwx dwy dφx dψy στ anc1 anc2 anc3 uij
             σpτ += σ[i,j] + τ[i,j]
             σpτΔt_2 += σpτ * Δt_2
@@ -48,9 +48,9 @@ export i_solve_parallel!
             uij += σpτΔt_2 * wold[i,j]
             σpτΔt_2 += 1
         end
+        u![i,j] += uij / σpτΔt_2
+        ~@routine
     end
-    @inbounds u![i,j] += uij / σpτΔt_2
-    ~@routine
     ~@routine
 end
 
@@ -63,42 +63,43 @@ end
         Δt_hx += Δt / hx
         Δt_hy += Δt / hy
     end
-    @routine @invcheckoff @inbounds begin
-        @zeros T σmτ σmτ_2 dux duy cσmτ_2 σΔt τΔt anc1 anc2
-        σmτ += σ[i,j] - τ[i,j]
-        σmτ_2 += σmτ / 2
-        dux += u![i+1,j] - u![i-1,j]
-        duy += u![i,j+1] - u![i,j-1]
-        cσmτ_2 += c[i,j] * σmτ_2
-        σΔt += Δt * σ[i,j]
-        τΔt += Δt * τ[i,j]
-        σΔt -= 1
-        τΔt -= 1
-        anc1 += Δt_hx * cσmτ_2
-        anc2 += Δt_hy * cσmτ_2
-    end
-    @inbounds begin
+    @invcheckoff @inbounds if i<size(u!, 1) && j<size(u!,2)
+        @routine begin
+            @zeros T σmτ σmτ_2 dux duy cσmτ_2 σΔt τΔt anc1 anc2
+            σmτ += σ[i,j] - τ[i,j]
+            σmτ_2 += σmτ / 2
+            dux += u![i+1,j] - u![i-1,j]
+            duy += u![i,j+1] - u![i,j-1]
+            cσmτ_2 += c[i,j] * σmτ_2
+            σΔt += Δt * σ[i,j]
+            τΔt += Δt * τ[i,j]
+            σΔt -= 1
+            τΔt -= 1
+            anc1 += Δt_hx * cσmτ_2
+            anc2 += Δt_hy * cσmτ_2
+        end
         φ![i,j] -= σΔt * φ0[i,j]
         φ![i,j] -=  anc1 * dux
         ψ![i,j] -= τΔt * ψ0[i,j]
         ψ![i,j] += anc2 * duy
+        ~@routine
     end
-    ~@routine
     ~@routine
 end
 
-@i function i_one_step_parallel!(param::AcousticPropagatorParams, u, w, wold, φ, φ0, ψ, ψ0, c::AbstractMatrix{T}; device, nthreads) where T
-    for (DI, DJ) in Base.Iterators.product((0,1,2), (0,1,2))
-        @launchkernel device nthreads (param.NX÷3, param.NY÷3) i_one_step_kernel1!(
-            param.DELTAT, param.DELTAX, param.DELTAY, u, w, wold,
-            φ, φ0, ψ, ψ0, param.Σx, param.Σy, c,
-            Val(DI), Val(DJ))
+let
+    exprs = []
+    for KF in [:(i_one_step_kernel1!), :(i_one_step_kernel2!)]
+        for (DI, DJ) in Base.Iterators.product((0,1,2), (0,1,2))
+            push!(exprs, :(@launchkernel device nthreads (ceil(Int,param.NX/3), ceil(Int,param.NY/3)) $KF(
+                    param.DELTAT, param.DELTAX, param.DELTAY, u, w, wold,
+                    φ, φ0, ψ, ψ0, param.Σx, param.Σy, c,
+                    Val($DI), Val($DJ))))
+        end
     end
-    for (DI, DJ) in Base.Iterators.product((0,1,2), (0,1,2))
-        @launchkernel device nthreads (param.NX÷3, param.NY÷3) i_one_step_kernel2!(
-            param.DELTAT, param.DELTAX, param.DELTAY, u, w, wold,
-            φ, φ0, ψ, ψ0, param.Σx, param.Σy, c,
-            Val(DI), Val(DJ))
+    ex = Expr(:block, exprs...)
+    @eval @i function i_one_step_parallel!(param::AcousticPropagatorParams, u, w, wold, φ, φ0, ψ, ψ0, c::AbstractMatrix{T}; device, nthreads) where T
+        $ex
     end
 end
 
@@ -107,7 +108,6 @@ end
             tua::AbstractArray{T,3}, tφa::AbstractArray{T,3}, tψa::AbstractArray{T,3},
             tub::AbstractArray{T,3}, tφb::AbstractArray{T,3}, tψb::AbstractArray{T,3};
             device, nthreads::Int) where T
-    @safe @assert param.NX%3 == 0 && param.NY%3 == 0 "NX and NY must be multiple of 3, got $(param.NX) and $(param.NY)"
     @safe @assert size(tψa)[1] == param.NX+2 && size(tψa)[2] == param.NY+2
     @safe @assert size(tψa) == size(tφa) == size(tua)
     @safe @assert size(tψb) == size(tφb) == (size(tub, 1), size(tub, 2), size(tub,3)÷2)
