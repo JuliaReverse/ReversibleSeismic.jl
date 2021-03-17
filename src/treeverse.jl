@@ -80,7 +80,7 @@ function treeverse!(f, gf, s::T, state::Dict{Int,T}, g, δ, τ, β, σ, ϕ, logg
         push!(logger, :store, τ, δ, β)
         logger.peak_mem[] = max(logger.peak_mem[], length(state))
         for j=β:σ-1
-            s = f(s)
+            s = NiLang.getf(f, j)(s)
             push!(logger, :call, τ, δ, j)
         end
     end
@@ -96,7 +96,7 @@ function treeverse!(f, gf, s::T, state::Dict{Int,T}, g, δ, τ, β, σ, ϕ, logg
     if ϕ-σ != 1
         error("treeverse fails!")
     end
-    g = gf(s, g)
+    g = NiLang.getf(gf, σ)(s, g)
     push!(logger, :grad, τ, δ, σ)
     if σ>β
         # retrieve s
@@ -106,16 +106,16 @@ function treeverse!(f, gf, s::T, state::Dict{Int,T}, g, δ, τ, β, σ, ϕ, logg
     return g
 end
 
-function treeverse_step!(s, param, srci, srcj, srcv, c)
-    unext = zero(s.u)
-    ReversibleSeismic.one_step!(param, unext, s.u, s.upre, s.φ, s.ψ, param.Σx, param.Σy, c)
-    s2 = SeismicState(s.u, unext, s.φ, s.ψ, s.step+1)
+function treeverse_step(s, param, srci, srcj, srcv, c)
+    unext, φ, ψ = zero(s.u), copy(s.φ), copy(s.ψ)
+    ReversibleSeismic.one_step!(param, unext, s.u, s.upre, φ, ψ, param.Σx, param.Σy, c)
+    s2 = SeismicState(s.u, unext, φ, ψ, s.step+1)
     s2.u[srci, srcj] += srcv[s2.step]*param.DELTAT^2
     return s2
 end
 
 function treeverse_grad(x, g, param, srci, srcj, srcv, gsrcv, c, gc)
-    y = treeverse_step!(copy(x), param, srci, srcj, srcv, c)
+    y = treeverse_step(x, param, srci, srcj, srcv, c)
     gt = SeismicState([GVar(getfield(y, field), getfield(g, field)) for field in fieldnames(SeismicState)[1:end-1]]..., y.step)
     _, gs, _, _, _, gv, gc2 = (~bennett_step!)(gt, GVar(x), param, srci, srcj, GVar(srcv, gsrcv), GVar(c, gc))
     (grad(gs), grad(gv), grad(gc2))
@@ -127,7 +127,7 @@ end
 * `s0` is the initial state,
 """
 function treeverse_solve(s0, gnf; param, srci, srcj, srcv, c, δ=20, logger=TreeverseLog())
-    f = x->treeverse_step!(x, param, srci, srcj, srcv, c)
+    f = x->treeverse_step(x, param, srci, srcj, srcv, c)
     function gf(x, g)
         if g === nothing
             g = gnf(f(x))
@@ -135,5 +135,5 @@ function treeverse_solve(s0, gnf; param, srci, srcj, srcv, c, δ=20, logger=Tree
         treeverse_grad(x, g[1], param, srci, srcj, srcv, g[2], c, g[3])
     end
     treeverse(f, gf,
-        copy(s0); δ=δ, N=param.NSTEP-1, f_inplace=true, logger=logger)
+        copy(s0); δ=δ, N=param.NSTEP-1, f_inplace=false, logger=logger)
 end

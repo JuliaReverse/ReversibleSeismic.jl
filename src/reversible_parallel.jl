@@ -158,12 +158,16 @@ end
     ~@routine
 end
 
-function treeverse_step!(s::CuSeismicState, param, srci, srcj, srcv, c::CuMatrix; nthreads=256)
-    bennett_step!(zero(s), s, param, srci, srcj, srcv, c; nthreads=nthreads)[1]
+function treeverse_step(s::CuSeismicState, param, srci, srcj, srcv, c::CuMatrix)
+    unext, φ, ψ = zero(s.u), copy(s.φ), copy(s.ψ)
+    one_step!(param, unext, s.u, s.upre, φ, ψ, param.Σx, param.Σy, c)
+    s2 = SeismicState(s.u, unext, φ, ψ, s.step+1)
+    @forcescalar s2.u[srci, srcj] += srcv[s2.step]*param.DELTAT^2
+    return s2
 end
 
 function treeverse_grad(x::CuSeismicState, g::CuSeismicState, param, srci, srcj, srcv, gsrcv, c::CuMatrix, gc::CuMatrix)
-    y = treeverse_step!(x, param, srci, srcj, srcv, c)  # this function is not inplace!
+    y = treeverse_step(x, param, srci, srcj, srcv, c)  # this function is not inplace!
     gt = SeismicState([GVar(getfield(y, field), getfield(g, field)) for field in fieldnames(SeismicState)[1:end-1]]..., y.step)
     _, gs, _, _, _, gv, gc2 = (~bennett_step!)(gt, GVar(x), param, srci, srcj, GVar(srcv, gsrcv), GVar(c, gc))
     (grad(gs), grad(gv), grad(gc2))

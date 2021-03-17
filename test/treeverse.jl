@@ -211,7 +211,7 @@ using NiLang.AD: GVar
 
         s1 = ReversibleSeismic.SeismicState([randn(nx+2,ny+2) for i=1:4]..., 2)
         s3 = ReversibleSeismic.bennett_step!(zero(s1), copy(s1), param, srci, srcj, srcv, c)[1]
-        s4 = ReversibleSeismic.treeverse_step!(copy(s1), param, srci, srcj, srcv, c)
+        s4 = ReversibleSeismic.treeverse_step(s1, param, srci, srcj, srcv, c)
         @test s3.u[2:end-2,2:end-2] ≈ s4.u[2:end-2,2:end-2]
         @test s3.upre[2:end-2,2:end-2] ≈ s4.upre[2:end-2,2:end-2]
         @test s3.φ[2:end-2,2:end-2] ≈ s4.φ[2:end-2,2:end-2]
