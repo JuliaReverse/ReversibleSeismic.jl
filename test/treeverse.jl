@@ -134,6 +134,9 @@ using NiLang.AD: GVar
     end
 
     function backward(x, g)
+        if g===nothing
+            g = (0.0, P3(1.0, 0.0, 0.0))
+        end
         y = step_fun(x)
         _, gs = (~i_step_fun)(
             (GVar(y[1], g[1]), P3(GVar(y[2].x, g[2].x), GVar(y[2].y, g[2].y), GVar(y[2].z,g[2].z))),
@@ -143,11 +146,9 @@ using NiLang.AD: GVar
 
     @testset "treeverse gradient" begin
         x0 = P3(1.0, 0.0, 0.0)
-
         for N in [20, 120, 126]
             g_fd = ForwardDiff.gradient(x->rk4(lorentz, P3(x...), nothing; t0=0.0, Δt=3e-3, Nt=N)[end].x, [x0.x, x0.y, x0.z])
-            g = (0.0, P3(1.0, 0.0, 0.0))
-            g_tv = treeverse(step_fun, backward, (0.0, x0), g; δ=4, N=N)
+            g_tv = treeverse(step_fun, backward, (0.0, x0); δ=4, N=N)
             @test g_fd ≈ [g_tv[2].x, g_tv[2].y, g_tv[2].z]
         end
     end
@@ -174,7 +175,7 @@ using NiLang.AD: GVar
         nsteps = binomial(τ+δ, τ)
         # directsolve
         log = ReversibleSeismic.TreeverseLog()
-        g = treeverse(step, ((b,c)->c+1), FT.(x), 0; N=nsteps, δ=δ, logger=log)
+        g = treeverse(step, (b,c)-> c===nothing ? 1 : c+1, FT.(x); N=nsteps, δ=δ, logger=log)
         @test g == nsteps
         @test log.peak_mem[] == 3
         @test count(x->x.action==:call, log.actions) == 2*nsteps-5
@@ -222,7 +223,7 @@ using NiLang.AD: GVar
         gn = ReversibleSeismic.SeismicState(Float64, nx, ny)
         gn.u[45,45] = 1.0
         log = ReversibleSeismic.TreeverseLog()
-        g_tv_x, g_tv_srcv, g_tv_c = treeverse_solve(s0, (gn, zero(srcv), zero(c));
+        g_tv_x, g_tv_srcv, g_tv_c = treeverse_solve(s0, x->(gn, zero(srcv), zero(c));
                     param=param, c=copy(c), srci=srci, srcj=srcj,
                     srcv=srcv, δ=50, logger=log)
         @test isapprox(g_nilang_srcv, g_tv_srcv)

@@ -43,15 +43,15 @@ function mid(δ, τ, σ, ϕ, d)
 end
 
 """
-    treeverse(f, gf, s, g; δ, N, τ=binomial_fit(N,δ), f_inplace=true, logger = TreeverseLog())
+    treeverse(f, gf, s; δ, N, τ=binomial_fit(N,δ), f_inplace=true, logger = TreeverseLog())
 
 Treeverse algorithm for back-propagating a program memory efficiently.
 
 Positional arguments
 * `f`, the step function that ``s_{i+1} = f(s_i)``,
-* `gf`, the single step gradient function that ``g_i = gf(s_i, g_{i+1})``,
+* `gf`, the single step gradient function that ``g_i = gf(s_i, g_{i+1})``
+   !!! When ``g_{i+1}`` is `nothing`, it should return the gradient of the loss function,
 * `s`, the initial state ``s_0``,
-* `g`, the gradient for the output state ``g_n``,
 
 Keyword arguments
 * `δ`, the number of checkpoints,
@@ -62,12 +62,12 @@ Keyword arguments
 
 Ref: https://www.tandfonline.com/doi/abs/10.1080/10556789208805505
 """
-function treeverse(f, gf, s::T, g; δ, N, τ=binomial_fit(N,δ), f_inplace=false, logger = TreeverseLog()) where T
+function treeverse(f, gf, s::T; δ, N, τ=binomial_fit(N,δ), f_inplace=false, logger = TreeverseLog()) where T
     state = Dict{Int,typeof(s)}()
     if N > binomial(τ+δ, τ)
         error("please input a larger `τ` and `δ` so that `binomial(τ+δ, τ) >= N`!")
     end
-    g = treeverse!(f, gf, s, state, g, δ, τ, 0, 0, N, logger, f_inplace)
+    g = treeverse!(f, gf, s, state, nothing, δ, τ, 0, 0, N, logger, f_inplace)
     return g
 end
 
@@ -122,13 +122,18 @@ function treeverse_grad(x, g, param, srci, srcj, srcv, gsrcv, c, gc)
 end
 
 """
-    treeverse_solve(s0, gn; param, srci, srcj, srcv, c, δ=20, logger=TreeverseLog())
+    treeverse_solve(s0; param, srci, srcj, srcv, c, δ=20, logger=TreeverseLog())
 
 * `s0` is the initial state,
-* `gn` is the gradient defined on the last state,
 """
-function treeverse_solve(s0, gn; param, srci, srcj, srcv, c, δ=20, logger=TreeverseLog())
-    treeverse(x->treeverse_step!(x, param, srci, srcj, srcv, c),
-        (x,g)->treeverse_grad(x, g[1], param, srci, srcj, srcv, g[2], c, g[3]),
-        copy(s0), gn; δ=δ, N=param.NSTEP-1, f_inplace=true, logger=logger)
+function treeverse_solve(s0, gnf; param, srci, srcj, srcv, c, δ=20, logger=TreeverseLog())
+    f = x->treeverse_step!(x, param, srci, srcj, srcv, c)
+    function gf(x, g)
+        if g === nothing
+            g = gnf(f(x))
+        end
+        treeverse_grad(x, g[1], param, srci, srcj, srcv, g[2], c, g[3])
+    end
+    treeverse(f, gf,
+        copy(s0); δ=δ, N=param.NSTEP-1, f_inplace=true, logger=logger)
 end

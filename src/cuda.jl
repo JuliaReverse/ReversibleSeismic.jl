@@ -2,6 +2,8 @@ using .KernelAbstractions: CUDA
 using .CUDA: CuArray
 using NiLang.AD: GVar
 
+export @iforcescalar, @forcescalar
+
 function CUDA.cu(a::AcousticPropagatorParams{DIM}) where DIM
      AcousticPropagatorParams(a.NX, a.NY, a.NSTEP, a.DELTAX, a.DELTAY, a.DELTAT, CuArray(a.Σx), CuArray(a.Σy))
 end
@@ -27,22 +29,63 @@ function (_::PlusEq{typeof(sum)})(out!::GVar{T}, ::typeof(abs2), x::AbstractArra
     out!, abs2, x
 end
 
-function apply_take1(f, args...)
-    f(args...)[1]
+#function apply_take1(f, args...)
+#    f(args...)[1]
+#end
+
+#function apply_take2(f, args...)
+    #f(args...)[2]
+#end
+
+#function apply_take3(f, args...)
+    #f(args...)[3]
+#end
+
+#function NiLangCore.ibcast(f, a::CuArray, b::CuArray)
+#    f, apply_take1.(f, a, b), apply_take2.(f, a, b)
+#end
+
+#function NiLangCore.ibcast(f, a::CuArray, b::CuArray, c::CuArray)
+#    f, apply_take1.(f, a, b, c), apply_take2.(f, a, b, c), apply_take3.(f, a, b, c)
+#end
+
+const CuSeismicState{MT} = SeismicState{MT<:CuMatrix{T}}
+
+export CuSeismicState
+function CuSeismicState(::Type{T}, nx::Int, ny::Int) where T
+    SeismicState([CUDA.zeros(T, nx+2, ny+2) for i=1:4]..., 0)
 end
 
-function apply_take2(f, args...)
-    f(args...)[2]
+macro iforcescalar(ex)
+    x = gensym()
+    esc(quote
+        $x ← $(CUDA.GPUArrays).ScalarAllowed
+        $(NiLang.SWAP)($(CUDA.GPUArrays).scalar_allowed[], $x)
+        $(ex)
+        $(NiLang.SWAP)($(CUDA.GPUArrays).scalar_allowed[], $x)
+        $x → $(CUDA.GPUArrays).ScalarAllowed
+    end)
 end
 
-function apply_take3(f, args...)
-    f(args...)[3]
+macro forcescalar(ex)
+    quote
+        x = $CUDA.GPUArrays.scalar_allowed[]
+        $CUDA.allowscalar(true)
+        $(esc(ex))
+        $CUDA.GPUArrays.scalar_allowed[] = x
+    end
 end
 
-function NiLangCore.ibcast(f, a::CuArray, b::CuArray)
-    f, apply_take1.(f, a, b), apply_take2.(f, a, b)
+@i function addkernel(target, source)
+    @invcheckoff b ← (blockIdx().x-1) * blockDim().x + threadIdx().x
+    @invcheckoff if (b <= length(target), ~)
+        @inbounds target[b] += source[b]
+    end
+    @invcheckoff b → (blockIdx().x-1) * blockDim().x + threadIdx().x
 end
 
-function NiLangCore.ibcast(f, a::CuArray, b::CuArray, c::CuArray)
-    f, apply_take1.(f, a, b, c), apply_take2.(f, a, b, c), apply_take3.(f, a, b, c)
+@i function :(+=)(identity)(target::CuArray, source::CuArray)
+    @safe @assert length(target) == length(source)
+    @cuda threads=256 blocks=ceil(Int,length(target)/256) addkernel(target, source)
 end
+

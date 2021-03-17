@@ -52,7 +52,7 @@ function loss_gpu(c::AbstractMatrix{T}; na, nb) where T
     i_loss_gpu!(loss, param, srci, srcj, srcv, CuArray(c), tua, tφa, tψa, tub, tφb, tψb)[1]
 end
 
-function loss_bennett_gpu(c::AbstractMatrix{T}; nstep, usecuda=true) where T
+function loss_bennett_gpu(c::AbstractMatrix{T}; nstep, usecuda=true, usetreeverse=false) where T
     nx = size(c, 1) - 2
     ny = size(c, 2) - 2
     param = AcousticPropagatorParams(nx=nx, ny=ny,
@@ -63,10 +63,21 @@ function loss_bennett_gpu(c::AbstractMatrix{T}; nstep, usecuda=true) where T
 
     if usecuda
         state = Dict(1=>CuSeismicState(Float64, nx, ny))
-        i_loss_bennett_gpu!(0.0, state, cu(param), srci, srcj, srcv, CuArray(c))[1]
+        param = cu(param)
+        c = CuArray(c)
     else
         state = Dict(1=>SeismicState(Float64, nx, ny))
-        i_loss_bennett_gpu!(0.0, state, param, srci, srcj, srcv, copy(c))[1]
+        c = copy(c)
+    end
+    if usetreeverse
+        function gn(sn)
+            g = zero(sn)
+            g.u .+= 2 .* sn.u
+            return g
+        end
+        treeverse_solve(state[1], gn; param=param, srci=srci, srcj=srcj, srcv=srcv, c=c)[1]
+    else
+        i_loss_bennett_gpu!(0.0, state, param, srci, srcj, srcv, c)[1]
     end
 end
 

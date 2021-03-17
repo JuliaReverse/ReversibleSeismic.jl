@@ -3,52 +3,6 @@ using .KernelAbstractions.CUDA
 
 export i_solve_parallel!
 
-function print_forward(str="")
-    println(">>>>> $str >>>>>")
-    str
-end
-function print_backward(str="")
-    println("<<<<< $str <<<<<")
-    str
-end
-@dual print_forward print_backward
-
-NiLangCore.assign_ex(x, y; invcheck) = @show (x, y)
-export @iforcescalar
-macro iforcescalar(ex)
-    x = gensym()
-    esc(quote
-        $x ← $(CUDA.GPUArrays).ScalarAllowed
-        $(NiLang.SWAP)($(CUDA.GPUArrays).scalar_allowed[], $x)
-        $(ex)
-        $(NiLang.SWAP)($(CUDA.GPUArrays).scalar_allowed[], $x)
-        $x → $(CUDA.GPUArrays).ScalarAllowed
-    end)
-end
-
-export @forcescalar
-macro forcescalar(ex)
-    quote
-        x = $CUDA.GPUArrays.scalar_allowed[]
-        $CUDA.allowscalar(true)
-        $(esc(ex))
-        $CUDA.GPUArrays.scalar_allowed[] = x
-    end
-end
-
-@i function addkernel(target, source)
-    @invcheckoff b ← (blockIdx().x-1) * blockDim().x + threadIdx().x
-    @invcheckoff if (b <= length(target), ~)
-        @inbounds target[b] += source[b]
-    end
-    @invcheckoff b → (blockIdx().x-1) * blockDim().x + threadIdx().x
-end
-
-@i function :(+=)(identity)(target::CuArray, source::CuArray)
-    @safe @assert length(target) == length(source)
-    @cuda threads=256 blocks=ceil(Int,length(target)/256) addkernel(target, source)
-end
-
 # `DI/DJ ~ [-1, 0, 1]`, number of threads should be `(nx÷3) * (ny÷3)`.
 @i @kernel function i_one_step_kernel1!(Δt, hx, hy, u!, w, wold, φ!, φ0, ψ!, ψ0, σ, τ, c::AbstractMatrix{T}, vi::Val{DI}, vj::Val{DJ}) where {T,DI,DJ}
     # update u!
@@ -204,7 +158,13 @@ end
     ~@routine
 end
 
-export CuSeismicState
-function CuSeismicState(::Type{T}, nx::Int, ny::Int) where T
-    SeismicState([CUDA.zeros(T, nx+2, ny+2) for i=1:4]..., 0)
+function treeverse_step!(s::CuSeismicState, param, srci, srcj, srcv, c::CuMatrix; nthreads=256)
+    bennett_step!(zero(s), s, param, srci, srcj, srcv, c; nthreads=nthreads)[1]
+end
+
+function treeverse_grad(x::CuSeismicState, g::CuSeismicState, param, srci, srcj, srcv, gsrcv, c::CuMatrix, gc::CuMatrix)
+    y = treeverse_step!(x, param, srci, srcj, srcv, c)  # this function is not inplace!
+    gt = SeismicState([GVar(getfield(y, field), getfield(g, field)) for field in fieldnames(SeismicState)[1:end-1]]..., y.step)
+    _, gs, _, _, _, gv, gc2 = (~bennett_step!)(gt, GVar(x), param, srci, srcj, GVar(srcv, gsrcv), GVar(c, gc))
+    (grad(gs), grad(gv), grad(gc2))
 end
