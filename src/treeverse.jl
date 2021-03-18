@@ -63,31 +63,34 @@ Keyword arguments
 Ref: https://www.tandfonline.com/doi/abs/10.1080/10556789208805505
 """
 function treeverse(f, gf, s::T; δ, N, τ=binomial_fit(N,δ), f_inplace=false, logger = TreeverseLog()) where T
-    state = Dict{Int,typeof(s)}()
+    state = Dict(0=>s)
     if N > binomial(τ+δ, τ)
         error("please input a larger `τ` and `δ` so that `binomial(τ+δ, τ) >= N`!")
     end
-    g = treeverse!(f, gf, s, state, nothing, δ, τ, 0, 0, N, logger, f_inplace)
+    g = treeverse!(f, gf, state, nothing, δ, τ, 0, 0, N, logger, f_inplace)
     return g
 end
 
-function treeverse!(f, gf, s::T, state::Dict{Int,T}, g, δ, τ, β, σ, ϕ, logger, f_inplace) where T
+function treeverse!(f, gf, state::Dict{Int,T}, g, δ, τ, β, σ, ϕ, logger, f_inplace) where T
     logger.depth[] += 1
+    # cache sσ
     if σ > β
         δ -= 1
-        # snapshot s
-        state[β] = (f_inplace ? copy(s) : s)
-        push!(logger, :store, τ, δ, β)
-        logger.peak_mem[] = max(logger.peak_mem[], length(state))
+        s = state[β]
         for j=β:σ-1
             s = NiLang.getf(f, j)(s)
             push!(logger, :call, τ, δ, j)
         end
+        state[σ] = (f_inplace ? copy(s) : s)
+        push!(logger, :store, τ, δ, σ)
+        logger.peak_mem[] = max(logger.peak_mem[], length(state))
+    elseif σ < β
+        error("treeverse fails! σ < β")
     end
 
     κ = mid(δ, τ, σ, ϕ, δ)
     while τ>0 && κ < ϕ
-        g = treeverse!(f, gf, f_inplace ? copy(s) : s, state, g, δ, τ, σ, κ, ϕ, logger, f_inplace)
+        g = treeverse!(f, gf, state, g, δ, τ, σ, κ, ϕ, logger, f_inplace)
         τ -= 1
         ϕ = κ
         κ = mid(δ, τ, σ, ϕ, δ)
@@ -96,11 +99,11 @@ function treeverse!(f, gf, s::T, state::Dict{Int,T}, g, δ, τ, β, σ, ϕ, logg
     if ϕ-σ != 1
         error("treeverse fails!")
     end
-    g = NiLang.getf(gf, σ)(s, g)
+    g = NiLang.getf(gf, σ)(state[σ], g)
     push!(logger, :grad, τ, δ, σ)
     if σ>β
         # retrieve s
-        pop!(state, β)
+        pop!(state, σ)
         push!(logger, :fetch, τ, δ, β)
     end
     return g

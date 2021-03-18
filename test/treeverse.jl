@@ -177,9 +177,20 @@ using NiLang.AD: GVar
         log = ReversibleSeismic.TreeverseLog()
         g = treeverse(step, (b,c)-> c===nothing ? 1 : c+1, FT.(x); N=nsteps, δ=δ, logger=log)
         @test g == nsteps
-        @test log.peak_mem[] == 3
+        @test log.peak_mem[] == 4
         @test count(x->x.action==:call, log.actions) == 2*nsteps-5
         @test count(x->x.action==:grad, log.actions) == nsteps
+
+        δ=3
+        nsteps = 100000
+        log = ReversibleSeismic.TreeverseLog()
+        g = treeverse(x->x, (b,c)-> c===nothing ? 1 : c+1, 0.0; N=nsteps, δ=δ, logger=log)
+        @test log.peak_mem[] == 4
+        @test g == nsteps
+        δ=9
+        g = treeverse(x->x, (b,c)-> c===nothing ? 1 : c+1, 0.0; N=nsteps, δ=δ, logger=log)
+        @test log.peak_mem[] == 10
+        @test g == nsteps
     end
 
     @testset "treeverse gradient" begin
