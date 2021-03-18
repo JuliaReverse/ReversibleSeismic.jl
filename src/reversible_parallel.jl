@@ -167,8 +167,16 @@ function treeverse_step(s::CuSeismicState, param, srci, srcj, srcv, c::CuMatrix)
 end
 
 function treeverse_grad(x::CuSeismicState, g::CuSeismicState, param, srci, srcj, srcv, gsrcv, c::CuMatrix, gc::CuMatrix)
+    println("gradient: $(x.step+1) -> $(x.step)")
+    CUDA.memory_status()
     y = treeverse_step(x, param, srci, srcj, srcv, c)  # this function is not inplace!
     gt = SeismicState([GVar(getfield(y, field), getfield(g, field)) for field in fieldnames(SeismicState)[1:end-1]]..., y.step)
-    _, gs, _, _, _, gv, gc2 = (~bennett_step!)(gt, GVar(x), param, srci, srcj, GVar(srcv, gsrcv), GVar(c, gc))
-    (grad(gs), grad(gv), grad(gc2))
+    x = GVar(x)
+    srcv = GVar(srcv, gsrcv)
+    c = GVar(c, gc)
+    (~bennett_step!)(gt, x, param, srci, srcj, srcv, c)
+    gv = grad(srcv)
+    gc2 = grad(c)
+    gs = grad(x)
+    (gs, gv, gc2)
 end
