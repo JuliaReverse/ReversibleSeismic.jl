@@ -159,9 +159,9 @@ end
 end
 
 function treeverse_step(s::CuSeismicState, param, srci, srcj, srcv, c::CuMatrix)
-    unext, φ, ψ = zero(s.u), copy(s.φ), copy(s.ψ)
-    one_step!(param, unext, s.u, s.upre, φ, ψ, param.Σx, param.Σy, c)
-    s2 = SeismicState(s.u, unext, φ, ψ, s.step+1)
+    unext, u, φ, ψ = zero(s.u), copy(s.u), copy(s.φ), copy(s.ψ)
+    one_step!(param, unext, u, s.upre, φ, ψ, param.Σx, param.Σy, c)
+    s2 = SeismicState(u, unext, φ, ψ, s.step+1)
     @forcescalar s2.u[srci, srcj] += srcv[s2.step]*param.DELTAT^2
     return s2
 end

@@ -81,7 +81,8 @@ function treeverse!(f, gf, state::Dict{Int,T}, g, δ, τ, β, σ, ϕ, logger, f_
             s = NiLang.getf(f, j)(s)
             push!(logger, :call, τ, δ, j)
         end
-        state[σ] = (f_inplace ? copy(s) : s)
+        store_state!(state,σ, f_inplace ? copy(s) : s)
+        s = nothing
         push!(logger, :store, τ, δ, σ)
         logger.peak_mem[] = max(logger.peak_mem[], length(state))
     elseif σ < β
@@ -102,11 +103,19 @@ function treeverse!(f, gf, state::Dict{Int,T}, g, δ, τ, β, σ, ϕ, logger, f_
     g = NiLang.getf(gf, σ)(state[σ], g)
     push!(logger, :grad, τ, δ, σ)
     if σ>β
-        # retrieve s
-        pop!(state, σ)
-        push!(logger, :fetch, τ, δ, β)
+        # remove state[σ]
+        delete_state!(state, σ)
+        push!(logger, :fetch, τ, δ, σ)
     end
     return g
+end
+
+@inline function store_state!(state::Dict, i::Int, x)
+    state[i] = x
+end
+
+@inline function delete_state!(state::Dict, i::Int)
+    pop!(state, i)
 end
 
 function treeverse_step(s, param, srci, srcj, srcv, c)

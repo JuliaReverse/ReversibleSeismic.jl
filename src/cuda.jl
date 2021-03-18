@@ -149,3 +149,11 @@ function one_step!(param::AcousticPropagatorParams, u, w, wold, φ, ψ, σ, τ, 
     return nothing
 end
 
+@inline function delete_state!(state::Dict{Int,<:CuSeismicState}, i::Int)
+    s = pop!(state, i)
+    CUDA.unsafe_free!(s.upre)
+    CUDA.unsafe_free!(s.u)
+    CUDA.unsafe_free!(s.φ)
+    CUDA.unsafe_free!(s.ψ)
+    return s
+end
