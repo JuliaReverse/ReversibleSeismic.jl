@@ -34,9 +34,9 @@ function binomial_fit(N::Int, δ::Int)
     return τ
 end
 
-function mid(δ, τ, σ, ϕ, d)
+function mid(δ, τ, σ, ϕ)
     κ = ceil(Int, (δ*σ + τ*ϕ)/(τ+δ))
-    if κ >= ϕ && d > 0
+    if κ >= ϕ && δ > 0
         κ = max(σ+1, ϕ-1)
     end
     return κ
@@ -89,17 +89,14 @@ function treeverse!(f, gf, state::Dict{Int,T}, g, δ, τ, β, σ, ϕ, logger, f_
         error("treeverse fails! σ < β")
     end
 
-    κ = mid(δ, τ, σ, ϕ, δ)
+    κ = mid(δ, τ, σ, ϕ)
     while τ>0 && κ < ϕ
         g = treeverse!(f, gf, state, g, δ, τ, σ, κ, ϕ, logger, f_inplace)
         τ -= 1
         ϕ = κ
-        κ = mid(δ, τ, σ, ϕ, δ)
+        κ = mid(δ, τ, σ, ϕ)
     end
 
-    if ϕ-σ != 1
-        error("treeverse fails!")
-    end
     g = NiLang.getf(gf, σ)(state[σ], g)
     push!(logger, :grad, τ, δ, σ)
     if σ>β

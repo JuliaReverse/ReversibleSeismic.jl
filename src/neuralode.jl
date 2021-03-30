@@ -27,12 +27,13 @@ function build_aug_dynamics(ag)
     function aug_dynamics(t, z::Glued, θ)
         y = z.data[1]
         gy = z.data[2]
-        a, gx = ag(t, y, θ, gy)
-        Glued(a, gx)
+        gθ = z.data[3]
+        a, ax, aθ = ag(t, y, θ, gy)
+        Glued(a, ax, aθ)
     end
 end
 
-function checkpointed_neuralode(solver, f, ag, x0::T, gn, θ; ts, checkpoint_step) where T
+function checkpointed_neuralode(solver, f, ag, x0::T, gn, θ, gθ; ts, checkpoint_step) where T
     N = length(ts)- 1
     ncheckpoint = ceil(Int, N / checkpoint_step)
     # compute checkpoints
@@ -47,14 +48,14 @@ function checkpointed_neuralode(solver, f, ag, x0::T, gn, θ; ts, checkpoint_ste
     for i=ncheckpoint:-1:1
         x = checkpoints[i]
         if i==ncheckpoint
-            z = Glued(x, gn)
+            z = Glued(x, gn, gθ)
         else
-            z = Glued(x, z.data[2])
+            z = Glued(x, z.data[2], z.data[3])
         end
         tsi = ts[(i-1)*checkpoint_step+1:min(i*checkpoint_step, N)+1]
-        z = ODESolve(solver, build_aug_dynamics(ag), z, nothing; ts=Iterators.reverse(tsi))
+        z = ODESolve(solver, build_aug_dynamics(ag), z, θ; ts=Iterators.reverse(tsi))
     end
-    z.data[2]
+    z.data[2], z.data[3]
 end
 
 struct ODELog{T}
