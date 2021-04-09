@@ -93,3 +93,21 @@ function solve(param::AcousticPropagatorParams, srci::Int, srcj::Int,
     end
     tu
 end
+
+
+function solve_final(param::AcousticPropagatorParams, srci::Int, srcj::Int, 
+            srcv::Array{Float64, 1}, c::Array{Float64, 2})
+
+    tupre = zeros(param.NX+2, param.NY+2)
+    tu = zeros(param.NX+2, param.NY+2)
+    tφ = zeros(param.NX+2, param.NY+2)
+    tψ = zeros(param.NX+2, param.NY+2)
+
+    for i = 3:param.NSTEP+1
+        tu_ = zeros(param.NX+2, param.NY+2)
+        one_step!(param, tu_, tu, tupre, tφ, tψ, param.Σx, param.Σy, c)
+        tu, tupre = tu_, tu
+        tu[srci, srcj] += srcv[i-2]*param.DELTAT^2
+    end
+    tu
+end
