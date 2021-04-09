@@ -30,9 +30,6 @@ if isinstalled("KernelAbstractions")
     @testset "cuda" begin
         include("cuda.jl")
     end
-    @testset "reversible_parallel" begin
-        include("reversible_parallel.jl")
-    end
     @testset "reversible_gpu" begin
         include("reversible_gpu.jl")
     end

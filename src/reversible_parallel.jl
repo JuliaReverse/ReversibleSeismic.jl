@@ -1,8 +1,6 @@
 using .KernelAbstractions
 using .KernelAbstractions.CUDA
 
-export i_solve_parallel!
-
 # `DI/DJ ~ [-1, 0, 1]`, number of threads should be `(nx÷3) * (ny÷3)`.
 @i @kernel function i_one_step_kernel1!(Δt, hx, hy, u!, w, wold, φ!, φ0, ψ!, ψ0, σ, τ, c::AbstractMatrix{T}, vi::Val{DI}, vj::Val{DJ}) where {T,DI,DJ}
     # update u!
@@ -101,47 +99,6 @@ let
     @eval @i function i_one_step_parallel!(param::AcousticPropagatorParams, u, w, wold, φ, φ0, ψ, ψ0, c::AbstractMatrix{T}; device, nthreads) where T
         $ex
     end
-end
-
-@i function i_solve_parallel!(param::AcousticPropagatorParams, srci::Int, srcj::Int,
-            srcv::AbstractArray{T, 1}, c::AbstractArray{T, 2},
-            tua::AbstractArray{T,3}, tφa::AbstractArray{T,3}, tψa::AbstractArray{T,3},
-            tub::AbstractArray{T,3}, tφb::AbstractArray{T,3}, tψb::AbstractArray{T,3};
-            device, nthreads::Int) where T
-    @safe @assert size(tψa)[1] == param.NX+2 && size(tψa)[2] == param.NY+2
-    @safe @assert size(tψa) == size(tφa) == size(tua)
-    @safe @assert size(tψb) == size(tφb) == (size(tub, 1), size(tub, 2), size(tub,3)÷2)
-    @routine begin
-        d2 ← zero(param.DELTAT)
-        d2 += param.DELTAT^2
-    end
-    for b = 1:size(tub, 3)÷2-1
-        @routine begin
-            # load data from the stack top of B to A
-            tua[:,:,1] .+= tub[:,:,2b-1]
-            tua[:,:,2] .+= tub[:,:,2b]
-            tφa[:,:,2] .+= tφb[:,:,b]
-            tψa[:,:,2] .+= tψb[:,:,b]
-            @safe CUDA.synchronize()  #! need to sync!
-            for a = 3:size(tua, 3)
-                i_one_step_parallel!(param, tua|>subarray(:,:,a), tua|>subarray(:,:,a-1), tua|>subarray(:,:,a-2),
-                        tφa|>subarray(:,:,a), tφa|>subarray(:,:,a-1), tψa|>subarray(:,:,a), tψa|>subarray(:,:,a-1), c;
-                        device=device, nthreads=nthreads)
-                @iforcescalar tua[srci, srcj, a] += srcv[(b-1)*(size(tua,3)-2) + a] * d2
-            end
-        end
-        # copy the stack top of A to B
-        tub[:,:,2b+1] .+= tua[:,:,end-1]
-        tub[:,:,2b+2] .+= tua[:,:,end]
-        tφb[:,:,b+1] .+= tφa[:,:,end]
-        tψb[:,:,b+1] .+= tψa[:,:,end]
-        ~@routine
-        @safe tua .= 0.0  # avoid the accumulation of rounding errors!
-        @safe tφa .= 0.0
-        @safe tψa .= 0.0
-        @safe GC.gc()
-    end
-    ~@routine
 end
 
 @i function bennett_step!(dest::T, src::T, param::AcousticPropagatorParams, srci, srcj, srcv, c; nthreads=256) where T<:SeismicState{<:CuArray}
