@@ -125,8 +125,8 @@ using NiLang.AD: GVar
         out += history[end].x
     end
     @i function i_step_fun(state2, state)
-        rk4_step!((@const lorentz!), (state2 |> tget(2)), (state |> tget(2)), (); Δt=3e-3, t=state[1])
-        (state2 |> tget(1)) += (state |> tget(1)) + 3e-3
+        rk4_step!((@const lorentz!), state2.:2, state.:2, (); Δt=3e-3, t=state[1])
+        state2.:1 += state.:1 + 3e-3
     end
 
     function step_fun(x)

@@ -7,6 +7,7 @@ end
 Glued(args...) = Glued(args)
 
 Base.zero(c::Glued) = Glued(zero.(c.data))
+Base.copy(c::Glued) = Glued(copy.(c.data))
 @generated function Base.zero(::Type{Glued{T}}) where T
     :(Glued($([zero(t) for t in T.types]...)))
 end

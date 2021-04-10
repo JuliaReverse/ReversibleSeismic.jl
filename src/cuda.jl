@@ -97,6 +97,12 @@ end
     @cuda threads=256 blocks=ceil(Int,length(target)/256) addkernel(target, source)
 end
 
+@i function :(+=)(convert)(x::TX, y::TY) where {TX<:AbstractArray, TY<:CuArray}
+    (TY=>TX)(y)
+    x += y_
+    (TX=>TY)(y)
+end
+
 @inline function cudiv(x::Int, y::Int)
     max_threads = 256
     threads_x = min(max_threads, x)
@@ -156,4 +162,26 @@ end
     CUDA.unsafe_free!(s.φ)
     CUDA.unsafe_free!(s.ψ)
     return s
+end
+
+@i function bennett_step_detector!(_dest::T, _src::T, param::AcousticPropagatorParams, srci, srcj, srcv, c, target_pulses, detector_loss; nthreads=256) where T<:Glued{Tuple{<:Real, <:SeismicState{<:CuArray}}}
+    @routine begin
+        d2 ← zero(param.DELTAT)
+        d2 += param.DELTAT^2
+        (dloss, dest) ← @unsafe_destruct _dest
+        (sloss, src) ← @unsafe_destruct _src
+    end
+    dest.upre += src.u
+    dest.step += src.step + 1
+    @safe CUDA.synchronize()
+    i_one_step_parallel!(param, dest.u, src.u, src.upre,
+        dest.φ, src.φ, dest.ψ, src.ψ, c; device=CUDADevice(), nthreads=nthreads)
+    @iforcescalar dest.u[srci, srcj] += srcv[dest.step] * d2
+    target_pulses[:,dest.step] -= convert(dest.u[detector_locs])
+    dloss += sloss
+    for i=1:size(target_pulses, 1)
+        dloss += target_pulses[i,dest.step]^2
+    end
+    target_pulses[:,dest.step] += convert(dest.u[detector_locs])
+    ~@routine
 end
