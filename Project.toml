@@ -10,6 +10,7 @@ Requires = "ae029012-a4dd-5104-9daa-d747884805df"
 
 [compat]
 NiLang = "0.8"
+NiLangCore = "0.8"
 Requires = "0.5, 1"
 julia = "1"
 
