@@ -163,13 +163,8 @@ end
     dest.upre += src.u
     dest.step += src.step + 1
     @safe CUDA.synchronize()
-    @safe @show "@"
     i_one_step_parallel!(param, dest.u, src.u, src.upre,
         dest.φ, src.φ, dest.ψ, src.ψ, c; device=CUDADevice(), nthreads=nthreads)
-    @safe @show param.NX, param.NY
-    @safe @show size(c), size(src.u), size(dest.u), size(dest.upre), size(src.upre), size(dest.φ), size(dest.ψ), size(src.φ), size(src.ψ)
-    @safe @show "#"
-    @safe CUDA.synchronize()
     dest.u[SafeIndex(srci, srcj)] += srcv[dest.step] * d2
     dloss += sloss
     l2_loss(dloss, target_pulses[:,dest.step], dest.u[detector_locs])
