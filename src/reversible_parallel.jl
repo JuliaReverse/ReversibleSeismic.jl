@@ -111,7 +111,7 @@ end
     @safe CUDA.synchronize()
     i_one_step_parallel!(param, dest.u, src.u, src.upre,
         dest.φ, src.φ, dest.ψ, src.ψ, c; device=CUDADevice(), nthreads=nthreads)
-    @iforcescalar dest.u[srci, srcj] += srcv[dest.step] * d2
+    dest.u[SafeIndex(srci, srcj)] += srcv[dest.step] * d2
     ~@routine
 end
 
@@ -119,7 +119,7 @@ function treeverse_step(s::CuSeismicState, param, srci, srcj, srcv, c::CuMatrix)
     unext, u, φ, ψ = zero(s.u), copy(s.u), copy(s.φ), copy(s.ψ)
     one_step!(param, unext, u, s.upre, φ, ψ, param.Σx, param.Σy, c)
     s2 = SeismicState(u, unext, φ, ψ, s.step+1)
-    @forcescalar s2.u[srci, srcj] += srcv[s2.step]*param.DELTAT^2
+    s2.u[SafeIndex(srci, srcj)] += srcv[s2.step]*param.DELTAT^2
     return s2
 end
 

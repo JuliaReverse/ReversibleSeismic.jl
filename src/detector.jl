@@ -1,18 +1,23 @@
 export solve_detector, bennett_step_detector!, treeverse_grad_detector,
     treeverse_solve_detector, i_loss_bennett_detector!
+
+function zero_similar(arr::AbstractArray{T}, size...) where T
+    zeros(T, size...)
+end
+
 function solve_detector(param::AcousticPropagatorParams, srci::Int, srcj::Int, 
-            srcv::Array{Float64, 1}, c::Array{Float64, 2}, detector_locs::AbstractVector)
-    slices = zeros(length(detector_locs), param.NSTEP-1)
-    tupre = zeros(param.NX+2, param.NY+2)
-    tu = zeros(param.NX+2, param.NY+2)
-    tφ = zeros(param.NX+2, param.NY+2)
-    tψ = zeros(param.NX+2, param.NY+2)
+            srcv::AbstractArray{Float64, 1}, c::AbstractArray{Float64, 2}, detector_locs::AbstractVector)
+    slices = zero_similar(c, length(detector_locs), param.NSTEP-1)
+    tupre = zero_similar(c, param.NX+2, param.NY+2)
+    tu = zero_similar(c, param.NX+2, param.NY+2)
+    tφ = zero_similar(c, param.NX+2, param.NY+2)
+    tψ = zero_similar(c, param.NX+2, param.NY+2)
 
     for i = 3:param.NSTEP+1
-        tu_ = zeros(param.NX+2, param.NY+2)
+        tu_ = zero_similar(c, param.NX+2, param.NY+2)
         one_step!(param, tu_, tu, tupre, tφ, tψ, param.Σx, param.Σy, c)
         tu, tupre = tu_, tu
-        tu[srci, srcj] += srcv[i-2]*param.DELTAT^2
+        tu[[CartesianIndex(srci, srcj)]] .= Array(tu[[CartesianIndex(srci, srcj)]])[] + srcv[i-2]*param.DELTAT^2
         slices[:,i-2] .= tu[detector_locs]
     end
     slices
@@ -81,8 +86,8 @@ function treeverse_step_detector(s_, param, srci, srcj, srcv, c, target_pulses, 
     unext, φ, ψ = zero(s.u), copy(s.φ), copy(s.ψ)
     ReversibleSeismic.one_step!(param, unext, s.u, s.upre, φ, ψ, param.Σx, param.Σy, c)
     s2 = SeismicState(s.u, unext, φ, ψ, s.step+1)
-    s2.u[srci, srcj] += srcv[s2.step]*param.DELTAT^2
-    l += sum(abs2, target_pulses[:,s2.step] - s2.u[detector_locs])
+    s2.u[[CartesianIndex(srci, srcj)]] .= Array(s2.u[[CartesianIndex(srci, srcj)]])[] + srcv[s2.step]*param.DELTAT^2
+    l += sum(abs2.(target_pulses[:,s2.step] .- s2.u[detector_locs]))
     return Glued(l, s2)
 end
 

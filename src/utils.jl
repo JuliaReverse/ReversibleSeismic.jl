@@ -33,3 +33,20 @@ function Ricker(epp,
     total = @. amp * A * mod * gauss
     return total
 end
+
+struct SafeIndex{T}
+    arg::T
+end
+
+function SafeIndex(args::Int...)
+    SafeIndex(CartesianIndex(args))
+end
+
+function Base.getindex(x::AbstractArray, si::SafeIndex)
+    getindex(x, si.arg)
+end
+
+function Base.setindex!(x::AbstractArray, val, si::SafeIndex)
+    setindex!(x, val, si.arg)
+end
+

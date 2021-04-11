@@ -3,7 +3,7 @@ using .KernelAbstractions.CUDA
 using .CUDA
 using NiLang.AD: GVar
 
-export @iforcescalar, @forcescalar, togpu
+export togpu
 
 function togpu(a::AcousticPropagatorParams{DIM}) where DIM
      AcousticPropagatorParams(a.NX, a.NY, a.NSTEP, a.DELTAX, a.DELTAY, a.DELTAT, CuArray(a.Σx), CuArray(a.Σy))
@@ -63,27 +63,6 @@ end
 
 togpu(x::AbstractArray) = CuArray(x)
 
-macro iforcescalar(ex)
-    x = gensym()
-    esc(quote
-        $x ← $(CUDA.GPUArrays).ScalarAllowed
-        $(NiLang.SWAP)($(CUDA.GPUArrays).scalar_allowed[], $x)
-        $(ex)
-        $(NiLang.SWAP)($(CUDA.GPUArrays).scalar_allowed[], $x)
-        $x → $(CUDA.GPUArrays).ScalarAllowed
-    end)
-end
-
-macro forcescalar(ex)
-    quote
-        x = $CUDA.GPUArrays.scalar_allowed[]
-        $CUDA.allowscalar(true)
-        res = $(esc(ex))
-        $CUDA.GPUArrays.scalar_allowed[] = x
-        res
-    end
-end
-
 @i function addkernel(target, source)
     @invcheckoff b ← (blockIdx().x-1) * blockDim().x + threadIdx().x
     @invcheckoff if (b <= length(target), ~)
@@ -99,7 +78,7 @@ end
 
 @i function :(+=)(convert)(x::TX, y::TY) where {TX<:AbstractArray, TY<:CuArray}
     (TY=>TX)(y)
-    x += y_
+    x += y
     (TX=>TY)(y)
 end
 
@@ -164,24 +143,52 @@ end
     return s
 end
 
-@i function bennett_step_detector!(_dest::T, _src::T, param::AcousticPropagatorParams, srci, srcj, srcv, c, target_pulses, detector_loss; nthreads=256) where T<:Glued{Tuple{<:Real, <:SeismicState{<:CuArray}}}
+function Base.getindex(x::CuArray, si::SafeIndex)
+    Array(x[[si.arg]])[]
+end
+
+function Base.setindex!(x::CuArray, val, si::SafeIndex)
+    x[[si.arg]] = val
+end
+
+@i function bennett_step_detector!(_dest::T, _src::T, param::AcousticPropagatorParams, srci, srcj, srcv, c::CuArray, target_pulses, detector_locs; nthreads=256) where T<:Glued
     @routine begin
         d2 ← zero(param.DELTAT)
         d2 += param.DELTAT^2
-        (dloss, dest) ← @unsafe_destruct _dest
-        (sloss, src) ← @unsafe_destruct _src
+        (data_dest,) ← @unsafe_destruct _dest
+        (data_src,) ← @unsafe_destruct _src
+        (dloss, dest) ← @unsafe_destruct data_dest
+        (sloss, src) ← @unsafe_destruct data_src
     end
     dest.upre += src.u
     dest.step += src.step + 1
     @safe CUDA.synchronize()
+    @safe @show "@"
     i_one_step_parallel!(param, dest.u, src.u, src.upre,
         dest.φ, src.φ, dest.ψ, src.ψ, c; device=CUDADevice(), nthreads=nthreads)
-    @iforcescalar dest.u[srci, srcj] += srcv[dest.step] * d2
-    target_pulses[:,dest.step] -= convert(dest.u[detector_locs])
+    @safe @show param.NX, param.NY
+    @safe @show size(c), size(src.u), size(dest.u), size(dest.upre), size(src.upre), size(dest.φ), size(dest.ψ), size(src.φ), size(src.ψ)
+    @safe @show "#"
+    @safe CUDA.synchronize()
+    dest.u[SafeIndex(srci, srcj)] += srcv[dest.step] * d2
     dloss += sloss
-    for i=1:size(target_pulses, 1)
-        dloss += target_pulses[i,dest.step]^2
-    end
-    target_pulses[:,dest.step] += convert(dest.u[detector_locs])
+    l2_loss(dloss, target_pulses[:,dest.step], dest.u[detector_locs])
     ~@routine
+end
+
+@i function l2_loss(loss, x, y)
+    @safe @assert length(x) == length(y)
+    @routine begin
+        temp ← zeros(eltype(x), length(x))
+        temp += convert(x)
+        temp -= convert(y)
+    end
+    for i=1:length(temp)
+        loss += temp[i]^2
+    end
+    ~@routine
+end
+
+function ReversibleSeismic.zero_similar(arr::CuArray{T}, size...) where T
+    CUDA.fill(zero(T), size...)
 end

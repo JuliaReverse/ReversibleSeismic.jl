@@ -11,9 +11,6 @@ CUDA.allowscalar(false)
     y = CUDA.CuArray([5.0,2.0,3.0])
     @instr x += y
     @test Array(x) == [6.0, 4.0, 6.0]
-    x = CUDA.CuArray([1.0,2.0,3.0])
-    @instr @iforcescalar x[2] += 2.0
-    @test Array(x) == [1.0, 4.0, 3.0]
 end
 
 @i function i_loss_bennett_gpu!(out!::T, state, param, srci, srcj, srcv::Vector{T}, c::AbstractMatrix{T}; bennett_k=50, logger=NiLang.BennettLog()) where T
@@ -111,10 +108,10 @@ obtain gradients numerically, for gradient checking.
 """
 function getngrad_gpu(c0::AbstractMatrix{T}, i, j; nstep::Int, δ=1e-4) where T
      c = c0 |> CuArray
-     @forcescalar c[i,j] += δ
+     c[ReversibleSeismic.SafeIndex(i,j)] += δ
      fpos = loss_bennett_gpu(c; nstep)
      c = c0 |> CuArray
-     @forcescalar c[i,j] -= δ
+     c[ReversibleSeismic.SafeIndex(i,j)] -= δ
      fneg = loss_bennett_gpu(c; nstep)
      return (fpos - fneg)/2δ
 end
