@@ -1,5 +1,4 @@
 using .KernelAbstractions
-using .KernelAbstractions.CUDA
 using .CUDA
 using NiLang.AD: GVar
 
