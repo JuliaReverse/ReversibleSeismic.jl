@@ -58,7 +58,7 @@ function CuSeismicState(::Type{T}, nx::Int, ny::Int) where T
 end
 
 function togpu(x::SeismicState)
-    SeismicState([CuArray(t) for t in [x.upre, x.u, x.φ, x.ψ]]..., 0)
+    SeismicState([CuArray(t) for t in [x.upre, x.u, x.φ, x.ψ]]..., Ref(0))
 end
 
 togpu(x::AbstractArray) = CuArray(x)
@@ -161,13 +161,13 @@ end
         (sloss, src) ← @unsafe_destruct data_src
     end
     dest.upre += src.u
-    dest.step += src.step + 1
+    dest.step[] += src.step[] + 1
     @safe CUDA.synchronize()
     i_one_step_parallel!(param, dest.u, src.u, src.upre,
         dest.φ, src.φ, dest.ψ, src.ψ, c; device=CUDADevice(), nthreads=nthreads)
-    dest.u[SafeIndex(srci, srcj)] += srcv[dest.step] * d2
+    dest.u[SafeIndex(srci, srcj)] += srcv[dest.step[]] * d2
     dloss += sloss
-    l2_loss(dloss, target_pulses[:,dest.step], dest.u[detector_locs])
+    l2_loss(dloss, target_pulses[:,dest.step[]], dest.u[detector_locs])
     ~@routine
 end
 

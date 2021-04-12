@@ -107,27 +107,27 @@ end
         d2 += param.DELTAT^2
     end
     dest.upre += src.u
-    dest.step += src.step + 1
+    dest.step[] += src.step[] + 1
     @safe CUDA.synchronize()
     i_one_step_parallel!(param, dest.u, src.u, src.upre,
         dest.φ, src.φ, dest.ψ, src.ψ, c; device=CUDADevice(), nthreads=nthreads)
-    dest.u[SafeIndex(srci, srcj)] += srcv[dest.step] * d2
+    dest.u[SafeIndex(srci, srcj)] += srcv[dest.step[]] * d2
     ~@routine
 end
 
 function treeverse_step(s::CuSeismicState, param, srci, srcj, srcv, c::CuMatrix)
     unext, u, φ, ψ = zero(s.u), copy(s.u), copy(s.φ), copy(s.ψ)
     one_step!(param, unext, u, s.upre, φ, ψ, param.Σx, param.Σy, c)
-    s2 = SeismicState(u, unext, φ, ψ, s.step+1)
-    s2.u[SafeIndex(srci, srcj)] += srcv[s2.step]*param.DELTAT^2
+    s2 = SeismicState(u, unext, φ, ψ, Ref(s.step[]+1))
+    s2.u[SafeIndex(srci, srcj)] += srcv[s2.step[]]*param.DELTAT^2
     return s2
 end
 
 function treeverse_grad(x::CuSeismicState, g::CuSeismicState, param, srci, srcj, srcv, gsrcv, c::CuMatrix, gc::CuMatrix)
-    println("gradient: $(x.step+1) -> $(x.step)")
+    println("gradient: $(x.step[]+1) -> $(x.step[])")
     CUDA.memory_status()
     y = treeverse_step(x, param, srci, srcj, srcv, c)  # this function is not inplace!
-    gt = SeismicState([GVar(getfield(y, field), getfield(g, field)) for field in fieldnames(SeismicState)[1:end-1]]..., y.step)
+    gt = SeismicState([GVar(getfield(y, field), getfield(g, field)) for field in fieldnames(SeismicState)[1:end-1]]..., Ref(y.step[]))
     x = GVar(x)
     srcv = GVar(srcv, gsrcv)
     c = GVar(c, gc)

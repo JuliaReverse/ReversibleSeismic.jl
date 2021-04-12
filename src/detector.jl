@@ -93,6 +93,8 @@ function treeverse_grad_detector(x_, g_, param, srci, srcj, srcv, gsrcv, c, gc, 
         getfield(gcache.y, field) .= GVar.(getfield(y, field), getfield(g, field))
         getfield(gcache.x, field) .= GVar.(getfield(x, field))
     end
+    gcache.x.step[] = x.step[]
+    gcache.y.step[] = y.step[]
 
     # compute
     _, gs, _, _, _, gv, gc2 = (~bennett_step_detector!)(Glued(GVar(ly, lg), gcache.y), Glued(GVar(lx), gcache.x), param, srci, srcj, gcache.srcv, gcache.c, gcache.target_pulses, detector_locs)
@@ -116,8 +118,8 @@ function treeverse_step_detector(s_, param, srci, srcj, srcv, c, target_pulses, 
     l, s = s_.data
     unext, φ, ψ = zero(s.u), copy(s.φ), copy(s.ψ)
     ReversibleSeismic.one_step!(param, unext, s.u, s.upre, φ, ψ, param.Σx, param.Σy, c)
-    s2 = SeismicState(s.u, unext, φ, ψ, s.step[]+1)
-    s2.u[[CartesianIndex(srci, srcj)]] .= Array(s2.u[[CartesianIndex(srci, srcj)]])[] + srcv[s2.step[]]*param.DELTAT^2
+    s2 = SeismicState(s.u, unext, φ, ψ, Ref(s.step[]+1))
+    s2.u[SafeIndex(srci, srcj)] += srcv[s2.step[]]*param.DELTAT^2
     l += sum(abs2.(target_pulses[:,s2.step[]] .- s2.u[detector_locs]))
     return Glued(l, s2)
 end
