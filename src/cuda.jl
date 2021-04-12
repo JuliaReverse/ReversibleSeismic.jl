@@ -1,5 +1,6 @@
 using .KernelAbstractions
-using .CUDA
+using .CUDAKernels
+using .CUDAKernels.CUDA
 using NiLang.AD: GVar
 
 export togpu
@@ -53,7 +54,7 @@ const CuSeismicState{MT} = SeismicState{MT} where MT<:CuArray
 
 export CuSeismicState
 function CuSeismicState(::Type{T}, nx::Int, ny::Int) where T
-    SeismicState([CUDA.zeros(T, nx+2, ny+2) for i=1:4]..., 0)
+    SeismicState([CUDA.zeros(T, nx+2, ny+2) for i=1:4]..., Ref(0))
 end
 
 function togpu(x::SeismicState)

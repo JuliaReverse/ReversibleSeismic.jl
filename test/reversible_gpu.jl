@@ -3,7 +3,9 @@ using ReversibleSeismic
 using KernelAbstractions
 using NiLang
 using NiLang.AD
-using KernelAbstractions.CUDA
+using CUDAKernels
+using CUDA
+
 CUDA.allowscalar(false)
 
 @testset "identity" begin
@@ -100,7 +102,7 @@ function getgrad_treeverse_gpu(c::AbstractMatrix{T}; nstep) where T
         g.u .+= 2 .* sn.u
         return (g, zero(srcv), zero(c))
     end
-    treeverse_solve(s0, gn; param=param, srci=srci, srcj=srcj, srcv=srcv, c=c)[3]
+    treeverse_solve(s0, gn; param=param, srci=srci, srcj=srcj, srcv=srcv, c=c)[2][3]
 end
 
 """

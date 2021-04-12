@@ -1,5 +1,6 @@
 using .KernelAbstractions
-using .KernelAbstractions.CUDA
+using .CUDAKernels
+using .CUDAKernels.CUDA
 
 # `DI/DJ ~ [-1, 0, 1]`, number of threads should be `(nx÷3) * (ny÷3)`.
 @i @kernel function i_one_step_kernel1!(Δt, hx, hy, u!, w, wold, φ!, φ0, ψ!, ψ0, σ, τ, c::AbstractMatrix{T}, vi::Val{DI}, vj::Val{DJ}) where {T,DI,DJ}
