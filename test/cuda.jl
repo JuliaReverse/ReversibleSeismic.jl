@@ -1,6 +1,6 @@
 using Test
 using ReversibleSeismic, NiLang.AD, NiLang
-using KernelAbstractions.CUDA
+using CUDA
 
 @testset "sum instr" begin
     out = 0.4
