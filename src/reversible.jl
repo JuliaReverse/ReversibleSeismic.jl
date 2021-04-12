@@ -1,4 +1,4 @@
-export i_solve!
+export i_solve!, solve2
 
 # do not wrap fields
 NiLang.AD.GVar(param::AcousticPropagatorParams) = param
@@ -91,4 +91,14 @@ end
         tu[srci, srcj, i] += srcv[i-2]* d2
     end
     ~@routine
+end
+
+function solve2(param::AcousticPropagatorParams, srci::Int, srcj::Int, 
+            srcv::Array{T, 1}, c::Array{T, 2}) where T
+    src = SeismicState(T, param.NX, param.NY)
+    for i=1:param.NSTEP-1
+        dest = SeismicState(T, param.NX, param.NY)
+        src, = bennett_step!(dest, src, param, srci, srcj, srcv, c)
+    end
+    return src
 end

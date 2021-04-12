@@ -19,7 +19,7 @@ using Test
     srcj = ny ÷ 2
     srcv = Ricker(param, 100.0, 500.0)
 
-    x = ReversibleSeismic.SeismicState(upre, u, φ, ψ, 0)
+    x = ReversibleSeismic.SeismicState(upre, u, φ, ψ, Ref(0))
 
     x_last = NiLang.direct_emulate(bennett_step!, copy(x), param, srci, srcj, srcv, copy(c); N=N)
     x_last_b = bennett(bennett_step!, zero(x), copy(x), param, srci, srcj, srcv, copy(c); k=k, N=N)[2]
@@ -28,7 +28,7 @@ using Test
     @test isapprox(x_last.ψ, x_last_b.ψ; atol=1e-5)
     @test isapprox(x_last.φ, x_last_b.φ; atol=1e-5)
     @test isapprox(x_last.upre, x_last_b.upre; atol=1e-5)
-    @test x_last.step == x_last_b.step
+    @test x_last.step[] == x_last_b.step[]
 
     @i function loss(out, step, y, x, param, srci, srcj, srcv, c; kwargs...)
         bennett((@skip! step), y, x, param, srci, srcj, srcv, c; kwargs...)

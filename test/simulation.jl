@@ -12,7 +12,9 @@ using ReversibleSeismic, Test
      srcv = Ricker(param, 100.0, 500.0)
      tu = solve(param, srci, srcj, srcv, c)
      tu2 = ReversibleSeismic.solve_final(param, srci, srcj, srcv, c)
+     tu3 = solve2(param, srci, srcj, srcv, c)
      @test tu[:,:,end] ≈ tu2
+     @test tu[:,:,end] ≈ tu3.u
      loss = sum(tu .^ 2)
      @test loss ≈ 10.931466822080788
 end

@@ -118,14 +118,14 @@ end
 function treeverse_step(s, param, srci, srcj, srcv, c)
     unext, φ, ψ = zero(s.u), copy(s.φ), copy(s.ψ)
     ReversibleSeismic.one_step!(param, unext, s.u, s.upre, φ, ψ, param.Σx, param.Σy, c)
-    s2 = SeismicState(s.u, unext, φ, ψ, s.step+1)
-    s2.u[srci, srcj] += srcv[s2.step]*param.DELTAT^2
+    s2 = SeismicState(s.u, unext, φ, ψ, Ref(s.step[]+1))
+    s2.u[srci, srcj] += srcv[s2.step[]]*param.DELTAT^2
     return s2
 end
 
 function treeverse_grad(x, g, param, srci, srcj, srcv, gsrcv, c, gc)
     y = treeverse_step(x, param, srci, srcj, srcv, c)
-    gt = SeismicState([GVar(getfield(y, field), getfield(g, field)) for field in fieldnames(SeismicState)[1:end-1]]..., y.step)
+    gt = SeismicState([GVar(getfield(y, field), getfield(g, field)) for field in fieldnames(SeismicState)[1:end-1]]..., Ref(y.step[]))
     _, gs, _, _, _, gv, gc2 = (~bennett_step!)(gt, GVar(x), param, srci, srcj, GVar(srcv, gsrcv), GVar(c, gc))
     (grad(gs), grad(gv), grad(gc2))
 end
@@ -137,12 +137,16 @@ end
 """
 function treeverse_solve(s0, gnf; param, srci, srcj, srcv, c, δ=20, logger=TreeverseLog())
     f = x->treeverse_step(x, param, srci, srcj, srcv, c)
+    res = []
     function gf(x, g)
         if g === nothing
-            g = gnf(f(x))
+            y = f(x)
+            push!(res, y)
+            g = gnf(y)
         end
         treeverse_grad(x, g[1], param, srci, srcj, srcv, g[2], c, g[3])
     end
-    treeverse(f, gf,
+    g = treeverse(f, gf,
         copy(s0); δ=δ, N=param.NSTEP-1, f_inplace=false, logger=logger)
+    return res[], g
 end
