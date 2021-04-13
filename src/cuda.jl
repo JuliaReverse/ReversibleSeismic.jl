@@ -61,6 +61,11 @@ function togpu(x::SeismicState)
     SeismicState([CuArray(t) for t in [x.upre, x.u, x.φ, x.ψ]]..., Ref(0))
 end
 
+togpu(x::Number) = x
+function togpu(x::Glued)
+    Glued(togpu.(x.data))
+end
+
 togpu(x::AbstractArray) = CuArray(x)
 
 @i function addkernel(target, source)
