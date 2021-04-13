@@ -1,6 +1,4 @@
-using .KernelAbstractions
-using .CUDAKernels
-using .CUDAKernels.CUDA
+using CUDA
 using NiLang.AD: GVar
 
 export togpu

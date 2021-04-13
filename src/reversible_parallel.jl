@@ -1,9 +1,7 @@
-using .KernelAbstractions
-using .CUDAKernels
-using .CUDAKernels.CUDA
+using CUDA
 
 # `DI/DJ ~ [-1, 0, 1]`, number of threads should be `(nx÷3) * (ny÷3)`.
-@i @kernel function i_one_step_kernel1!(Δt, hx, hy, u!, w, wold, φ!, φ0, ψ!, ψ0, σ, τ, c::AbstractMatrix{T}, vi::Val{DI}, vj::Val{DJ}) where {T,DI,DJ}
+@i @inline function i_one_step_kernel1!(Δt, hx, hy, u!, w, wold, φ!, φ0, ψ!, ψ0, σ, τ, c::AbstractMatrix{T}, vi::Val{DI}, vj::Val{DJ}) where {T,DI,DJ}
     # update u!
     @routine @invcheckoff begin
         @zeros Float64 Δt2 Δt_hx Δt_hy Δt_hx2 Δt_hy2 Δt_2
@@ -14,9 +12,8 @@ using .CUDAKernels.CUDA
         Δt_hy2 += Δt_hy ^ 2
         Δt_2 += Δt/2
 
-        inds ← @index(Global, NTuple)
-        i ← inds[1]*3 + DI - 1
-        j ← inds[2]*3 + DJ - 1
+        i ← ((blockIdx().x-1) * blockDim().x + threadIdx().x)*3 + DI - 1
+        j ← ((blockIdx().y-1) * blockDim().y + threadIdx().y)*3 + DJ - 1
     end
 
     @invcheckoff @inbounds if i<size(u!, 1) && j<size(u!,2)
@@ -53,11 +50,10 @@ using .CUDAKernels.CUDA
     ~@routine
 end
 
-@i @kernel function i_one_step_kernel2!(Δt, hx, hy, u!, w, wold, φ!, φ0, ψ!, ψ0, σ, τ, c::AbstractMatrix{T}, vi::Val{DI}, vj::Val{DJ}) where {T,DI,DJ}
+@i @inline function i_one_step_kernel2!(Δt, hx, hy, u!, w, wold, φ!, φ0, ψ!, ψ0, σ, τ, c::AbstractMatrix{T}, vi::Val{DI}, vj::Val{DJ}) where {T,DI,DJ}
     @routine @invcheckoff begin
-        inds ← @index(Global, NTuple)
-        i ← inds[1]*3 + DI - 1
-        j ← inds[2]*3 + DJ - 1
+        i ← ((blockIdx().x-1) * blockDim().x + threadIdx().x)*3 + DI - 1
+        j ← ((blockIdx().y-1) * blockDim().y + threadIdx().y)*3 + DJ - 1
         @zeros Float64 Δt_hx Δt_hy
         Δt_hx += Δt / hx
         Δt_hy += Δt / hy
@@ -87,22 +83,22 @@ end
 end
 
 let
-    exprs = []
+    exprs = [:((threads, blocks) ← cudiv(ceil(Int,param.NX/3), ceil(Int,param.NY/3)))]
     for KF in [:(i_one_step_kernel1!), :(i_one_step_kernel2!)]
         for (DI, DJ) in Base.Iterators.product((0,1,2), (0,1,2))
-            push!(exprs, :(@launchkernel device nthreads (ceil(Int,param.NX/3), ceil(Int,param.NY/3)) $KF(
+            push!(exprs, :(@cuda threads=threads blocks=blocks $KF(
                     param.DELTAT, param.DELTAX, param.DELTAY, u, w, wold,
                     φ, φ0, ψ, ψ0, param.Σx, param.Σy, c,
                     Val($DI), Val($DJ))))
         end
     end
     ex = Expr(:block, exprs...)
-    @eval @i function i_one_step_parallel!(param::AcousticPropagatorParams, u, w, wold, φ, φ0, ψ, ψ0, c::AbstractMatrix{T}; device, nthreads) where T
+    @eval @i function i_one_step_parallel!(param::AcousticPropagatorParams, u, w, wold, φ, φ0, ψ, ψ0, c::AbstractMatrix{T}) where T
         $ex
     end
 end
 
-@i function bennett_step!(dest::T, src::T, param::AcousticPropagatorParams, srci, srcj, srcv, c; nthreads=256) where T<:SeismicState{<:CuArray}
+@i function bennett_step!(dest::T, src::T, param::AcousticPropagatorParams, srci, srcj, srcv, c) where T<:SeismicState{<:CuArray}
     @routine begin
         d2 ← zero(param.DELTAT)
         d2 += param.DELTAT^2
@@ -111,7 +107,7 @@ end
     dest.step[] += src.step[] + 1
     @safe CUDA.synchronize()
     i_one_step_parallel!(param, dest.u, src.u, src.upre,
-        dest.φ, src.φ, dest.ψ, src.ψ, c; device=CUDADevice(), nthreads=nthreads)
+        dest.φ, src.φ, dest.ψ, src.ψ, c)
     dest.u[SafeIndex(srci, srcj)] += srcv[dest.step[]] * d2
     ~@routine
 end

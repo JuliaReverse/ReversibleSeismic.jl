@@ -1,9 +1,7 @@
 using Test
 using ReversibleSeismic
-using KernelAbstractions
 using NiLang
 using NiLang.AD
-using CUDAKernels
 using CUDA
 
 CUDA.allowscalar(false)

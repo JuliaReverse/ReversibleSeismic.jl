@@ -1,4 +1,4 @@
-using ReversibleSeismic
+using ReversibleSeismic, CUDA
 using Test, Pkg
 
 @testset "reversible" begin
@@ -26,7 +26,7 @@ function isinstalled(target)
     return false
 end
 
-if isinstalled("KernelAbstractions")
+if CUDA.functional()
     @testset "cuda" begin
         include("cuda.jl")
     end
