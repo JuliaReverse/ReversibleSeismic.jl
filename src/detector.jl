@@ -84,6 +84,8 @@ end
 function treeverse_grad_detector(x_, g_, param, srci, srcj, srcv, gsrcv, c, gc, target_pulses, detector_locs, gcache)
     lx, x = x_.data
     lg, g = g_.data
+    println("gradient: $(x.step[]+1) -> $(x.step[])")
+    CUDA.memory_status()
     ly, y = treeverse_step_detector(x_, param, srci, srcj, srcv, c, target_pulses, detector_locs).data
 
     # fit data into cache
