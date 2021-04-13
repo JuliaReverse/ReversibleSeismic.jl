@@ -120,7 +120,7 @@ function treeverse_step_detector(s_, param, srci, srcj, srcv, c, target_pulses, 
     l, s = s_.data
     unext, φ, ψ = zero(s.u), copy(s.φ), copy(s.ψ)
     ReversibleSeismic.one_step!(param, unext, s.u, s.upre, φ, ψ, param.Σx, param.Σy, c)
-    s2 = SeismicState(s.u, unext, φ, ψ, Ref(s.step[]+1))
+    s2 = SeismicState(copy(s.u), unext, φ, ψ, Ref(s.step[]+1))
     s2.u[SafeIndex(srci, srcj)] += srcv[s2.step[]]*param.DELTAT^2
     l += sum(abs2.(target_pulses[:,s2.step[]] .- s2.u[detector_locs]))
     return Glued(l, s2)
