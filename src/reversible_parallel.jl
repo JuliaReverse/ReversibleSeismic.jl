@@ -126,7 +126,7 @@ end
 
 function treeverse_grad(x::CuSeismicState, g::CuSeismicState, param, srci, srcj, srcv, gsrcv, c::CuMatrix, gc::CuMatrix)
     println("gradient: $(x.step[]+1) -> $(x.step[])")
-    CUDA.memory_status()
+    #CUDA.memory_status()
     y = treeverse_step(x, param, srci, srcj, srcv, c)  # this function is not inplace!
     gt = SeismicState([GVar(getfield(y, field), getfield(g, field)) for field in fieldnames(SeismicState)[1:end-1]]..., Ref(y.step[]))
     x = GVar(x)
