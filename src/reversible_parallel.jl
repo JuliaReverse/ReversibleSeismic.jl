@@ -18,16 +18,29 @@ using CUDA
 
     @invcheckoff @inbounds if i<size(u!, 1) && j<size(u!,2)
         @routine begin
-            @zeros T σpτ σpτΔt_2 cΔt_hx2 cΔt_hy2 dwx dwy dφx dψy στ anc1 anc2 anc3 uij
-            σpτ += σ[i,j] + τ[i,j]
+            @zeros T σpτ σpτΔt_2 cΔt_hx2 cΔt_hy2 dwx dwy dφx dψy στ anc1 anc2 anc3 uij σij τij φ0ipj φ0imj ψ0ijp ψ0ijm wipj wimj wijp wijm woldij wij cij
+            σij += σ[i,j]
+            τij += τ[i,j]
+            wipj += w[i+1,j]
+            wimj += w[i-1,j]
+            wijp += w[i,j+1]
+            wijm += w[i,j-1]
+            wij += w[i,j]
+            woldij += wold[i,j]
+            φ0ipj += φ0[i+1,j]
+            φ0imj += φ0[i-1,j]
+            ψ0ijp += ψ0[i,j+1]
+            ψ0ijm += ψ0[i,j-1]
+            cij += c[i,j]
+            σpτ += σij + τij
             σpτΔt_2 += σpτ * Δt_2
-            cΔt_hx2 += Δt_hx2 * c[i,j]
-            cΔt_hy2 += Δt_hy2 * c[i,j]
-            dwx += w[i+1,j] + w[i-1,j]
-            dwy += w[i,j+1] + w[i,j-1]
-            dφx += φ0[i+1,j] - φ0[i-1,j]
-            dψy += ψ0[i,j+1] - ψ0[i,j-1]
-            στ += σ[i,j] * τ[i,j]
+            cΔt_hx2 += Δt_hx2 * cij
+            cΔt_hy2 += Δt_hy2 * cij
+            dwx += wipj + wimj
+            dwy += wijp + wijm
+            dφx += φ0ipj - φ0imj
+            dψy += ψ0ijp - ψ0ijm
+            στ += σij * τij
 
             anc1 += 2
             anc1 -= στ * Δt2
@@ -35,13 +48,13 @@ using CUDA
             anc1 -= 2 * cΔt_hy2
             anc2 += Δt_2 * Δt_hx
             anc3 += Δt_2 * Δt_hy
-            uij += anc1 * w[i,j]
+            uij += anc1 * wij
             uij += cΔt_hx2  *  dwx
             uij += cΔt_hy2  *  dwy
             uij += anc2 * dφx
             uij += anc3 * dψy
-            uij -= wold[i,j]
-            uij += σpτΔt_2 * wold[i,j]
+            uij -= woldij
+            uij += σpτΔt_2 * woldij
             σpτΔt_2 += 1
         end
         u![i,j] += uij / σpτΔt_2
@@ -60,22 +73,31 @@ end
     end
     @invcheckoff @inbounds if i<size(u!, 1) && j<size(u!,2)
         @routine begin
-            @zeros T σmτ σmτ_2 dux duy cσmτ_2 σΔt τΔt anc1 anc2
-            σmτ += σ[i,j] - τ[i,j]
+            @zeros T σmτ σmτ_2 dux duy cσmτ_2 σΔt τΔt anc1 anc2 σij τij uipj uimj uijp uijm φ0ij ψ0ij cij
+            σij += σ[i,j]
+            τij += τ[i,j]
+            uipj += u![i+1,j]
+            uimj += u![i-1,j]
+            uijp += u![i,j+1]
+            uijm += u![i,j-1]
+            φ0ij += φ0[i,j]
+            ψ0ij += ψ0[i,j]
+            cij += c[i,j]
+            σmτ += σij - τij
             σmτ_2 += σmτ / 2
-            dux += u![i+1,j] - u![i-1,j]
-            duy += u![i,j+1] - u![i,j-1]
-            cσmτ_2 += c[i,j] * σmτ_2
-            σΔt += Δt * σ[i,j]
-            τΔt += Δt * τ[i,j]
+            dux += uipj - uimj
+            duy += uijp - uijm
+            cσmτ_2 += cij * σmτ_2
+            σΔt += Δt * σij
+            τΔt += Δt * τij
             σΔt -= 1
             τΔt -= 1
             anc1 += Δt_hx * cσmτ_2
             anc2 += Δt_hy * cσmτ_2
         end
-        φ![i,j] -= σΔt * φ0[i,j]
+        φ![i,j] -= σΔt * φ0ij
         φ![i,j] -=  anc1 * dux
-        ψ![i,j] -= τΔt * ψ0[i,j]
+        ψ![i,j] -= τΔt * ψ0ij
         ψ![i,j] += anc2 * duy
         ~@routine
     end
