@@ -1,7 +1,7 @@
 export Glued, RK4, ODESolve, ODEStep,
     i_ODESolve, i_ODEStep, ODELog, checkpointed_neuralode
 
-struct Glued{T<:Tuple}
+struct Glued{T}
     data::T
 end
 Glued(args...) = Glued(args)
@@ -12,16 +12,16 @@ Base.copy(c::Glued) = Glued(copy.(c.data))
     :(Glued($([zero(t) for t in T.types]...)))
 end
 
-@inline function Base.:(+)(a::Glued, b::Glued)
-    Glued(a.data .+ b.data)
+@inline function Base.:(+)(a::Glued{T}, b::Glued{T}) where T
+    Glued{T}(a.data .+ b.data)
 end
 
-@inline function Base.:(/)(a::Glued, b::Real)
-    Glued(a.data ./ b)
+@inline function Base.:(/)(a::Glued{T}, b::Real) where T
+    Glued{T}(a.data ./ b)
 end
 
-@inline function Base.:(*)(a::Real, b::Glued)
-    Glued(a .* b.data)
+@inline function Base.:(*)(a::Real, b::Glued{T}) where T
+    Glued{T}(a .* b.data)
 end
 
 function build_aug_dynamics(ag)
@@ -34,7 +34,7 @@ function build_aug_dynamics(ag)
     end
 end
 
-function checkpointed_neuralode(solver, f, ag, x0::T, gn, θ, gθ; ts, checkpoint_step) where T
+function checkpointed_neuralode(solver, f, ag, x0::T, gn::TN, θ, gθ::TT; ts, checkpoint_step) where {T,TN,TT}
     N = length(ts)- 1
     ncheckpoint = ceil(Int, N / checkpoint_step)
     # compute checkpoints
@@ -45,13 +45,11 @@ function checkpointed_neuralode(solver, f, ag, x0::T, gn, θ, gθ; ts, checkpoin
         x = ODESolve(solver, f, x, θ; ts=tsi, logger=nothing)
         checkpoints[i] = x
     end
-    local z
+    z = Glued{Tuple{T,TN,TT}}((checkpoints[end], gn, gθ))
     for i=ncheckpoint:-1:1
-        x = checkpoints[i]
-        if i==ncheckpoint
-            z = Glued(x, gn, gθ)
-        else
-            z = Glued(x, z.data[2], z.data[3])
+        if i!=ncheckpoint
+            x = checkpoints[i]
+            z = Glued{Tuple{T,TN,TT}}((x, z.data[2], z.data[3]))
         end
         tsi = ts[(i-1)*checkpoint_step+1:min(i*checkpoint_step, N)+1]
         z = ODESolve(solver, build_aug_dynamics(ag), z, θ; ts=Iterators.reverse(tsi))
