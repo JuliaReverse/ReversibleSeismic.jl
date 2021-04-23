@@ -1,6 +1,32 @@
 export solve_detector, bennett_step_detector!, treeverse_grad_detector,
     treeverse_solve_detector, i_loss_bennett_detector!, solve_detector2
 
+export Glued, RK4, ODESolve, ODEStep,
+    i_ODESolve, i_ODEStep, ODELog, checkpointed_neuralode
+
+struct Glued{T}
+    data::T
+end
+Glued(args...) = Glued(args)
+
+Base.zero(c::Glued) = Glued(zero.(c.data))
+Base.copy(c::Glued) = Glued(copy.(c.data))
+@generated function Base.zero(::Type{Glued{T}}) where T
+    :(Glued($([zero(t) for t in T.types]...)))
+end
+
+@inline function Base.:(+)(a::Glued{T}, b::Glued{T}) where T
+    Glued{T}(a.data .+ b.data)
+end
+
+@inline function Base.:(/)(a::Glued{T}, b::Real) where T
+    Glued{T}(a.data ./ b)
+end
+
+@inline function Base.:(*)(a::Real, b::Glued{T}) where T
+    Glued{T}(a .* b.data)
+end
+
 function zero_similar(arr::AbstractArray{T}, size...) where T
     zeros(T, size...)
 end
