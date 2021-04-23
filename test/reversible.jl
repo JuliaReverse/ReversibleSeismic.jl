@@ -5,9 +5,9 @@ using NiLang
 """
 the reversible loss
 """
-@i function i_loss!(out::T, param, srci, srcj, srcv::AbstractVector{T}, c::AbstractMatrix{T},
+@i function i_loss!(out::T, param, src, srcv::AbstractVector{T}, c::AbstractMatrix{T},
           tu::AbstractArray{T,3}, tφ::AbstractArray{T,3}, tψ::AbstractArray{T,3}) where T
-     i_solve!(param, srci, srcj, srcv, c, tu, tφ, tψ)
+     i_solve!(param, src, srcv, c, tu, tφ, tψ)
      for i=1:size(tu, 1)
         for j=1:size(tu, 2)
             out += tu[i,j,end] ^ 2
@@ -27,10 +27,9 @@ function getgrad(c::AbstractMatrix{T}; nstep::Int) where T
      tφ = zeros(T, size(c)..., nstep+1)
      tψ = zeros(T, size(c)..., nstep+1)
 
-     srci = size(c, 1) ÷ 2 - 1
-     srcj = size(c, 2) ÷ 2 - 1
+     src = size(c) .÷ 2 .- 1
      srcv = Ricker(param, 100.0, 500.0)
-     NiLang.AD.gradient(Val(1), i_loss!, (0.0, param, srci, srcj, srcv, c, tu, tφ, tψ))[end-3]
+     NiLang.AD.gradient(Val(1), i_loss!, (0.0, param, src, srcv, c, tu, tφ, tψ))[end-3]
 end
 
 """
@@ -45,13 +44,12 @@ function getngrad(c::AbstractMatrix{T}, i, j; nstep::Int, δ=1e-4) where T
      tφ = zeros(T, size(c)..., nstep+1)
      tψ = zeros(T, size(c)..., nstep+1)
 
-     srci = size(c, 1) ÷ 2 - 1
-     srcj = size(c, 2) ÷ 2 - 1
+     src = size(c) .÷ 2 .- 1
      srcv = Ricker(param, 100.0, 500.0)
      c[i,j] += δ
-     fpos = i_loss!(0.0, param, srci, srcj, srcv, copy(c), copy(tu), copy(tφ), copy(tψ))[1]
+     fpos = i_loss!(0.0, param, src, srcv, copy(c), copy(tu), copy(tφ), copy(tψ))[1]
      c[i,j] -= 2δ
-     fneg = i_loss!(0.0, param, srci, srcj, srcv, copy(c), copy(tu), copy(tφ), copy(tψ))[1]
+     fneg = i_loss!(0.0, param, src, srcv, copy(c), copy(tu), copy(tφ), copy(tψ))[1]
      return (fpos - fneg)/2δ
 end
 
@@ -66,12 +64,11 @@ end
      tψ = zeros(nx+2, ny+2, nstep+1)
 
      c = 1000*ones(nx+2, ny+2)
-     srci = nx ÷ 2
-     srcj = ny ÷ 2
+     src = (nx ÷ 2, ny ÷ 2)
      srcv = Ricker(param, 100.0, 500.0)
 
-     loss = i_loss!(0.0, param, srci, srcj, srcv, c, tu, tφ, tψ)[1]
-     @test check_inv(i_loss!, (0.0, param, srci, srcj, srcv, c, tu, tφ, tψ); atol=1e-6)
+     loss = i_loss!(0.0, param, src, srcv, c, tu, tφ, tψ)[1]
+     @test check_inv(i_loss!, (0.0, param, src, srcv, c, tu, tφ, tψ); atol=1e-6)
      #@test loss ≈ 10.931466822080788
      @test loss ≈ 6.234873084873294e-5
 end

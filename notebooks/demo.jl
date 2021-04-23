@@ -17,7 +17,7 @@ using Optim
 md"# To define a loss"
 
 # ╔═╡ 937e8aa6-f17a-11ea-1d5d-6f495a29d584
-@i function i_solve!(param::AcousticPropagatorParams, srci::Int, srcj::Int,
+@i function i_solve!(param::AcousticPropagatorParams, src,
             srcv::Array{T, 1}, c::Array{T, 2},
             tu::Array{T,3}, tφ::Array{T,3}, tψ::Array{T,3}) where T
 
@@ -28,7 +28,7 @@ md"# To define a loss"
     for i = 3:param.NSTEP+1
         i_one_step!(param, view(tu,:,:,i), view(tu,:,:,i-1), view(tu,:,:,i-2),
             view(tφ,:,:,i), view(tφ,:,:,i-1), view(tψ,:,:,i), view(tψ,:,:,i-1), param.Σx, param.Σy, c)
-        tu[srci, srcj, i] += srcv[i-2] * d2
+        tu[src[1], src[2], i] += srcv[i-2] * d2
     end
     ~@routine
 end
@@ -43,14 +43,14 @@ c = 700 * (1 .+ sin.(LinRange(0, 5π, 82))' .* cos.(LinRange(0, 3π, 82)));
 """
 the reversible loss
 """
-@i function i_loss!(out::T, param, srci, srcj, srcv::AbstractVector{T}, c0::AbstractMatrix{T}, tu::AbstractArray{T,3}, tφ::AbstractArray{T,3}, tψ::AbstractArray{T,3}) where T
+@i function i_loss!(out::T, param, src, srcv::AbstractVector{T}, c0::AbstractMatrix{T}, tu::AbstractArray{T,3}, tφ::AbstractArray{T,3}, tψ::AbstractArray{T,3}) where T
 	@routine begin
 		c ← zero(c0)
 		for i=1:length(c0)
 			c[i] += abs(c0[i])
 		end
 	end
-    i_solve!(param, srci, srcj, srcv, c, tu, tφ, tψ)
+    i_solve!(param, src, srcv, c, tu, tφ, tψ)
 	out -= tu[size(tu,1)÷2,size(tu,2)÷2+20,end]
 	~@routine
 end
@@ -65,11 +65,10 @@ function loss(c; nstep)
  	tφ = zeros(nx+2, ny+2, nstep+1)
  	tψ = zeros(nx+2, ny+2, nstep+1)
 	
- 	srci = nx ÷ 2
- 	srcj = ny ÷ 2
+ 	src = (nx ÷ 2, ny ÷ 2)
  	srcv = Ricker(param, 100.0, 500.0)
 
- 	res = i_loss!(0.0, param, srci, srcj, srcv, copy(c), tu, tφ, tψ)
+ 	res = i_loss!(0.0, param, src, srcv, copy(c), tu, tφ, tψ)
 	res[1], res[7]
 end
 
@@ -106,10 +105,9 @@ function getgrad(c::AbstractMatrix{T}; nstep::Int) where T
      tφ = zeros(T, size(c)..., nstep+1)
      tψ = zeros(T, size(c)..., nstep+1)
 
-     srci = size(c, 1) ÷ 2 - 1
-     srcj = size(c, 2) ÷ 2 - 1
+     src = size(c) .÷ 2 .- 1
      srcv = Ricker(param, 100.0, 500.0)
-     NiLang.AD.gradient(Val(1), i_loss!, (0.0, param, srci, srcj, srcv, c, tu, tφ, tψ))[end-3]
+     NiLang.AD.gradient(Val(1), i_loss!, (0.0, param, src, srcv, c, tu, tφ, tψ))[end-3]
 end;
 
 # ╔═╡ 5f8782ca-f17a-11ea-082a-a98ea089b700

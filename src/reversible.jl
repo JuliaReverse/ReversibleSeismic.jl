@@ -77,7 +77,7 @@ NiLang.AD.grad(param::AcousticPropagatorParams) = nothing
     ~@routine
 end
 
-@i function i_solve!(param::AcousticPropagatorParams, srci::Int, srcj::Int,
+@i function i_solve!(param::AcousticPropagatorParams, src,
             srcv::Array{T, 1}, c::Array{T, 2},
             tu::Array{T,3}, tφ::Array{T,3}, tψ::Array{T,3}) where T
 
@@ -88,17 +88,17 @@ end
     for i = 3:param.NSTEP+1
         i_one_step!(param, tu |> subarray(:,:,i), tu |> subarray(:,:,i-1), tu |> subarray(:,:,i-2),
             tφ |> subarray(:,:,i), tφ |> subarray(:,:,i-1), tψ |> subarray(:,:,i), tψ |> subarray(:,:,i-1), c)
-        tu[srci, srcj, i] += srcv[i-2]* d2
+        tu[src[1], src[2], i] += srcv[i-2]* d2
     end
     ~@routine
 end
 
-function solve2(param::AcousticPropagatorParams, srci::Int, srcj::Int, 
+function solve2(param::AcousticPropagatorParams, srcloc, 
             srcv::Array{T, 1}, c::Array{T, 2}) where T
     src = SeismicState(T, param.NX, param.NY)
     for i=1:param.NSTEP-1
         dest = SeismicState(T, param.NX, param.NY)
-        src, = bennett_step!(dest, src, param, srci, srcj, srcv, c)
+        src, = bennett_step!(dest, src, param, srcloc, srcv, c)
     end
     return src
 end

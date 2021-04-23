@@ -80,7 +80,7 @@ function one_step!(param::AcousticPropagatorParams, u, w, wold, φ, ψ, σ, τ, 
     end
 end
 
-function solve(param::AcousticPropagatorParams, srci::Int, srcj::Int, 
+function solve(param::AcousticPropagatorParams, src, 
             srcv::Array{Float64, 1}, c::Array{Float64, 2})
 
     tu = zeros(param.NX+2, param.NY+2, param.NSTEP+1)
@@ -89,13 +89,13 @@ function solve(param::AcousticPropagatorParams, srci::Int, srcj::Int,
 
     for i = 3:param.NSTEP+1
         one_step!(param, view(tu,:,:,i), view(tu,:,:,i-1), view(tu,:,:,i-2), tφ, tψ, param.Σx, param.Σy, c)
-        tu[srci, srcj, i] += srcv[i-2]*param.DELTAT^2
+        tu[src[1], src[2], i] += srcv[i-2]*param.DELTAT^2
     end
     tu
 end
 
 
-function solve_final(param::AcousticPropagatorParams, srci::Int, srcj::Int, 
+function solve_final(param::AcousticPropagatorParams, src, 
             srcv::Array{Float64, 1}, c::Array{Float64, 2})
 
     tupre = zeros(param.NX+2, param.NY+2)
@@ -107,7 +107,7 @@ function solve_final(param::AcousticPropagatorParams, srci::Int, srcj::Int,
         tu_ = zeros(param.NX+2, param.NY+2)
         one_step!(param, tu_, tu, tupre, tφ, tψ, param.Σx, param.Σy, c)
         tu, tupre = tu_, tu
-        tu[srci, srcj] += srcv[i-2]*param.DELTAT^2
+        tu[src...] += srcv[i-2]*param.DELTAT^2
     end
     tu
 end

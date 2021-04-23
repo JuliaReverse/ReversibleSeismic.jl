@@ -120,7 +120,7 @@ let
     end
 end
 
-@i function bennett_step!(dest::T, src::T, param::AcousticPropagatorParams, srci, srcj, srcv, c) where T<:SeismicState{<:CuArray}
+@i function bennett_step!(dest::T, src::T, param::AcousticPropagatorParams, srcloc, srcv, c) where T<:SeismicState{<:CuArray}
     @routine begin
         d2 ← zero(param.DELTAT)
         d2 += param.DELTAT^2
@@ -130,27 +130,27 @@ end
     @safe CUDA.synchronize()
     i_one_step_parallel!(param, dest.u, src.u, src.upre,
         dest.φ, src.φ, dest.ψ, src.ψ, c)
-    dest.u[SafeIndex(srci, srcj)] += srcv[dest.step[]] * d2
+    dest.u[SafeIndex(srcloc)] += srcv[dest.step[]] * d2
     ~@routine
 end
 
-function treeverse_step(s::CuSeismicState, param, srci, srcj, srcv, c::CuMatrix)
+function treeverse_step(s::CuSeismicState, param, src, srcv, c::CuMatrix)
     unext, u, φ, ψ = zero(s.u), copy(s.u), copy(s.φ), copy(s.ψ)
     one_step!(param, unext, u, s.upre, φ, ψ, param.Σx, param.Σy, c)
     s2 = SeismicState(u, unext, φ, ψ, Ref(s.step[]+1))
-    s2.u[SafeIndex(srci, srcj)] += srcv[s2.step[]]*param.DELTAT^2
+    s2.u[SafeIndex(src)] += srcv[s2.step[]]*param.DELTAT^2
     return s2
 end
 
-function treeverse_grad(x::CuSeismicState, g::CuSeismicState, param, srci, srcj, srcv, gsrcv, c::CuMatrix, gc::CuMatrix)
+function treeverse_grad(x::CuSeismicState, g::CuSeismicState, param, src, srcv, gsrcv, c::CuMatrix, gc::CuMatrix)
     println("gradient: $(x.step[]+1) -> $(x.step[])")
     #CUDA.memory_status()
-    y = treeverse_step(x, param, srci, srcj, srcv, c)  # this function is not inplace!
+    y = treeverse_step(x, param, src, srcv, c)  # this function is not inplace!
     gt = SeismicState([GVar(getfield(y, field), getfield(g, field)) for field in fieldnames(SeismicState)[1:end-1]]..., Ref(y.step[]))
     x = GVar(x)
     srcv = GVar(srcv, gsrcv)
     c = GVar(c, gc)
-    (~bennett_step!)(gt, x, param, srci, srcj, srcv, c)
+    (~bennett_step!)(gt, x, param, src, srcv, c)
     gv = grad(srcv)
     gc2 = grad(c)
     gs = grad(x)

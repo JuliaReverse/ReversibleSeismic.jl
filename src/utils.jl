@@ -38,9 +38,10 @@ struct SafeIndex{T}
     arg::T
 end
 
-function SafeIndex(args::Int...)
+function SafeIndex(args::Tuple)
     SafeIndex(CartesianIndex(args))
 end
+SafeIndex(args::Int...) = SafeIndex(args)
 
 function Base.getindex(x::AbstractArray, si::SafeIndex)
     getindex(x, si.arg)

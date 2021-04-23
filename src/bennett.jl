@@ -24,7 +24,7 @@ Base.copy(x::SeismicState) = SeismicState(copy(x.upre), copy(x.u), copy(x.φ), c
     x.step[] += y.step[]
 end
 
-@i function bennett_step!(dest, src, param::AcousticPropagatorParams, srci, srcj, srcv, c)
+@i function bennett_step!(dest, src, param::AcousticPropagatorParams, srcloc, srcv, c)
     @routine begin
         d2 ← zero(param.DELTAT)
         d2 += param.DELTAT^2
@@ -33,19 +33,19 @@ end
     dest.step[] += src.step[] + 1
     i_one_step!(param, dest.u, src.u, src.upre,
         dest.φ, src.φ, dest.ψ, src.ψ, c)
-    dest.u[srci, srcj] += srcv[dest.step[]] * d2
+    dest.u[srcloc...] += srcv[dest.step[]] * d2
     ~@routine
 end
 
-function bennett_solve(s0, gn; param, srci, srcj, srcv, c, k, N, logger=NiLang.BennettLog())
+function bennett_solve(s0, gn; param, src, srcv, c, k, N, logger=NiLang.BennettLog())
     # forward execution
     d = Dict(1=>s0)
-    bennett!(bennett_step!, d, param, srci, srcj, srcv, c; k=k, N=N, logger=logger)
+    bennett!(bennett_step!, d, param, src, srcv, c; k=k, N=N, logger=logger)
     # backward execution
     y = d[N+1]
     y = SeismicState([GVar(getfield(y, field), getfield(gn, field)) for field in fieldnames(SeismicState)[1:end-1]]..., Ref(y.step[]))
     d = GVar(d)
     d[N+1] = y
-    _, gs, _, _, _, gv, gc = (~bennett!)(bennett_step!, d, param, srci, srcj, GVar(srcv), GVar(c); k=k, N=N, logger=logger)
+    _, gs, _, _, gv, gc = (~bennett!)(bennett_step!, d, param, src, GVar(srcv), GVar(c); k=k, N=N, logger=logger)
     return grad(gs[1]), grad(gv), grad(gc)
 end

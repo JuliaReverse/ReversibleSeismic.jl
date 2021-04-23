@@ -164,7 +164,7 @@ function Base.setindex!(x::CuArray, val, si::SafeIndex)
     x[[si.arg]] = val
 end
 
-@i function bennett_step_detector!(_dest::T, _src::T, param::AcousticPropagatorParams, srci, srcj, srcv, c::CuArray, target_pulses, detector_locs; nthreads=256) where T<:Glued
+@i function bennett_step_detector!(_dest::T, _src::T, param::AcousticPropagatorParams, srcloc, srcv, c::CuArray, target_pulses, detector_locs; nthreads=256) where T<:Glued
     @routine begin
         d2 ← zero(param.DELTAT)
         d2 += param.DELTAT^2
@@ -178,7 +178,7 @@ end
     @safe CUDA.synchronize()
     i_one_step_parallel!(param, dest.u, src.u, src.upre,
         dest.φ, src.φ, dest.ψ, src.ψ, c)
-    dest.u[SafeIndex(srci, srcj)] += srcv[dest.step[]] * d2
+    dest.u[SafeIndex(srcloc)] += srcv[dest.step[]] * d2
     dloss += sloss
     l2_loss(dloss, target_pulses[:,dest.step[]], dest.u[detector_locs])
     ~@routine

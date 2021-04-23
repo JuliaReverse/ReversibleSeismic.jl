@@ -201,13 +201,12 @@ using NiLang.AD: GVar
         # gradient
         param = AcousticPropagatorParams(nx=size(c,1)-2, ny=size(c,2)-2,
             Rcoef=0.2, dx=20.0, dy=20.0, dt=0.05, nstep=N)
-        srci = size(c, 1) ÷ 2 - 1
-        srcj = size(c, 2) ÷ 2 - 1
+        src = size(c) .÷ 2 .- 1
         srcv = Ricker(param, 100.0, 500.0)
 
-        @i function i_loss!(out::T, param, srci, srcj, srcv::AbstractVector{T}, c::AbstractMatrix{T},
+        @i function i_loss!(out::T, param, src, srcv::AbstractVector{T}, c::AbstractMatrix{T},
                 tu::AbstractArray{T,3}, tφ::AbstractArray{T,3}, tψ::AbstractArray{T,3}) where T
-            i_solve!(param, srci, srcj, srcv, c, tu, tφ, tψ)
+            i_solve!(param, src, srcv, c, tu, tφ, tψ)
             out += tu[45,45,end]
         end
 
@@ -216,13 +215,13 @@ using NiLang.AD: GVar
             tu = zeros(T, size(c)..., N+1)
             tφ = zeros(T, size(c)..., N+1)
             tψ = zeros(T, size(c)..., N+1)
-            res = NiLang.AD.gradient(Val(1), i_loss!, (0.0, param, srci, srcj, srcv, c, tu, tφ, tψ))
+            res = NiLang.AD.gradient(Val(1), i_loss!, (0.0, param, src, srcv, c, tu, tφ, tψ))
             res[end-2], res[end-4], res[end-3]
         end
 
         s1 = ReversibleSeismic.SeismicState([randn(nx+2,ny+2) for i=1:4]..., Ref(2))
-        s3 = ReversibleSeismic.bennett_step!(zero(s1), copy(s1), param, srci, srcj, srcv, c)[1]
-        s4 = ReversibleSeismic.treeverse_step(s1, param, srci, srcj, srcv, c)
+        s3 = ReversibleSeismic.bennett_step!(zero(s1), copy(s1), param, src, srcv, c)[1]
+        s4 = ReversibleSeismic.treeverse_step(s1, param, src, srcv, c)
         @test s3.u[2:end-2,2:end-2] ≈ s4.u[2:end-2,2:end-2]
         @test s3.upre[2:end-2,2:end-2] ≈ s4.upre[2:end-2,2:end-2]
         @test s3.φ[2:end-2,2:end-2] ≈ s4.φ[2:end-2,2:end-2]
@@ -234,9 +233,9 @@ using NiLang.AD: GVar
         gn = ReversibleSeismic.SeismicState(Float64, nx, ny)
         gn.u[45,45] = 1.0
         log = ReversibleSeismic.TreeverseLog()
-        res0 = solve(param, srci, srcj, srcv, copy(c))
+        res0 = solve(param, src, srcv, copy(c))
         res, (g_tv_x, g_tv_srcv, g_tv_c) = treeverse_solve(s0, x->(gn, zero(srcv), zero(c));
-                    param=param, c=copy(c), srci=srci, srcj=srcj,
+                    param=param, c=copy(c), src,
                     srcv=srcv, δ=50, logger=log)
         @test res.u ≈ res0[:,:,end]
         @test isapprox(g_nilang_srcv, g_tv_srcv)
