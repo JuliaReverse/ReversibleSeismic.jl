@@ -3,7 +3,7 @@
 Automatic differentiating PML solver in seismic simulation.
 For examples, see https://github.com/GiggleLiu/WuLiXueBao
 
-![CI](https://github.com/GiggleLiu/ReversibleSeismic.jl/workflows/CI/badge.svg)
+[![CI](https://github.com/JuliaReverse/ReversibleSeismic.jl/actions/workflows/ci.yml/badge.svg)](https://github.com/JuliaReverse/ReversibleSeismic.jl/actions/workflows/ci.yml)
 
 ## Features
 
