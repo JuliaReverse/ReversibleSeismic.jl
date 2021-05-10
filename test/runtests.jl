@@ -1,7 +1,7 @@
 using ReversibleSeismic, CUDA
 using Test, Pkg
 
-@testset "reversible" begin
+@testset "simulation" begin
     include("simulation.jl")
 end
 

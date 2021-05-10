@@ -114,7 +114,7 @@ let
                     Val($DI), Val($DJ))))
         end
     end
-    ex = Expr(:block, exprs...)
+    ex = Expr(:block, exprs..., :((threads, blocks) → cudiv(ceil(Int,param.NX/3), ceil(Int,param.NY/3))))
     @eval @i function i_one_step_parallel!(param::AcousticPropagatorParams, u, w, wold, φ, φ0, ψ, ψ0, c::AbstractMatrix{T}) where T
         $ex
     end

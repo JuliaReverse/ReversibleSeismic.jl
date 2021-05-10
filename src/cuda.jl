@@ -40,12 +40,12 @@ function apply_take3(f, args...)
     f(args...)[3]
 end
 
-function NiLangCore.ibcast(f, a::CuArray, b::CuArray)
-    f, apply_take1.(f, a, b), apply_take2.(f, a, b)
+function NiLangCore.unzipped_broadcast(f, a::CuArray, b::CuArray)
+    apply_take1.(f, a, b), apply_take2.(f, a, b)
 end
 
-function NiLangCore.ibcast(f, a::CuArray, b::CuArray, c::CuArray)
-    f, apply_take1.(f, a, b, c), apply_take2.(f, a, b, c), apply_take3.(f, a, b, c)
+function NiLangCore.unzipped_broadcast(f, a::CuArray, b::CuArray, c::CuArray)
+    apply_take1.(f, a, b, c), apply_take2.(f, a, b, c), apply_take3.(f, a, b, c)
 end
 
 const CuSeismicState{MT} = SeismicState{MT} where MT<:CuArray
