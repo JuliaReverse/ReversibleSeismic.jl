@@ -3,7 +3,7 @@
 Automatic differentiating PML solver in seismic simulation.
 For examples, see https://github.com/GiggleLiu/WuLiXueBao
 
-![CI](https://github.com/GiggleLiu/ReversibleSeismic.jl/workflows/CI/badge.svg)
+[![CI](https://github.com/JuliaReverse/ReversibleSeismic.jl/actions/workflows/ci.yml/badge.svg)](https://github.com/JuliaReverse/ReversibleSeismic.jl/actions/workflows/ci.yml)
 
 ## Features
 
@@ -16,7 +16,7 @@ It can differentiate a PML solver defined on a 5000 x 5000 grid with 10000 time 
 ## References
 
 * https://github.com/kailaix/ADSeismic.jl/
-* https://github.com/geodynamics/seismic\_cpml
+* https://github.com/geodynamics/seismic_cpml
 * Efficient PML for the wave equation [arxiv: 1001.0319](https://arxiv.org/abs/1001.0319)
 
 If you want to credit this repo, please cite
