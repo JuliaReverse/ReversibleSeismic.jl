@@ -168,10 +168,10 @@ end
     @routine begin
         d2 ← zero(param.DELTAT)
         d2 += param.DELTAT^2
-        (data_dest,) ← @unsafe_destruct _dest
-        (data_src,) ← @unsafe_destruct _src
-        (dloss, dest) ← @unsafe_destruct data_dest
-        (sloss, src) ← @unsafe_destruct data_src
+        (data_dest,) ← @fields _dest
+        (data_src,) ← @fields _src
+        (dloss, dest) ← @fields data_dest
+        (sloss, src) ← @fields data_src
     end
     dest.upre += src.u
     dest.step[] += src.step[] + 1

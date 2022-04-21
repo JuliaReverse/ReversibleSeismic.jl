@@ -1,3 +1,4 @@
+.gitignore
 *.jl.*.cov
 *.jl.cov
 *.jl.mem
@@ -6,3 +7,4 @@ _*.png
 Manifest.toml
 report*.sqlite
 report*.qdrep
+.vscode
